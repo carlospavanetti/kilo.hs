@@ -12,6 +12,7 @@ enableRawMode = do
             flip withoutMode EnableEcho $
             flip withoutMode ProcessInput $
             flip withoutMode KeyboardInterrupts $
+            flip withoutMode StartStopOutput $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
