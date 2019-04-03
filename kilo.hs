@@ -47,7 +47,12 @@ editorReadKey = do
 {-- output --}
 
 editorRefreshScreen :: IO ()
-editorRefreshScreen = void $ fdWrite stdOutput "\x1B[2J"
+editorRefreshScreen = let
+        clearCmd      = "\x1B[2J"
+        repositionCmd = "\x1B[H"
+    in void
+        $ fdWrite stdOutput clearCmd
+        >> fdWrite stdOutput repositionCmd
 
 {-- input --}
 
