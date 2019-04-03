@@ -6,6 +6,10 @@ import Data.Bits ((.&.))
 import Data.Char (chr, ord, isControl)
 import Control.Monad (when)
 import Control.Exception (finally, catch, IOException)
+
+import Foreign.C.Error (eAGAIN, getErrno)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Exit (die, exitSuccess)
 import System.Posix.IO
 import System.Posix.Terminal
 
@@ -35,21 +39,28 @@ enableRawMode = do
 disableRawMode :: TerminalAttributes -> IO ()
 disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
 
+editorReadKey :: IO Char
+editorReadKey = do
+    (char:[], nread) <- fdRead stdInput 1
+    if (nread == -1) && (unsafePerformIO getErrno == eAGAIN)
+        then die("read")
+        else return char
+
+editorProcessKeypress :: Char -> IO ()
+editorProcessKeypress c
+        | c == controlKeyMask 'q' = exitSuccess
+        | otherwise = return ()
+
 {-- input --}
 
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 {-- init --}
 
-main :: IO()
+main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     safeLoop `finally` disableRawMode originalAttributes
     where
         safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
-        loop = do
-            (char:[], count) <- fdRead stdInput 1
-            if isControl char
-                then putStrLn $ (show $ ord char) ++ "\r"
-                else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")\r"
-            when (char /= controlKeyMask 'q') loop
+        loop = editorReadKey >>= editorProcessKeypress >> loop
