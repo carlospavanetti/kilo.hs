@@ -46,16 +46,25 @@ editorReadKey = do
 
 {-- output --}
 
+editorDrawRows :: Int -> IO ()
+editorDrawRows 0 = return ()
+editorDrawRows n =
+    fdWrite stdOutput "~\r\n" >> editorDrawRows (n - 1)
+
+editorRepositionCursor :: IO ()
+editorRepositionCursor = let repositionCmd = "\x1B[H"
+    in void $ fdWrite stdOutput repositionCmd
+
 editorClearScreen :: IO ()
-editorClearScreen = let
-        clearCmd      = "\x1B[2J"
-        repositionCmd = "\x1B[H"
-    in void
-        $ fdWrite stdOutput clearCmd
-        >> fdWrite stdOutput repositionCmd
+editorClearScreen = let clearCmd = "\x1B[2J"
+    in fdWrite stdOutput clearCmd
+        >> editorRepositionCursor
 
 editorRefreshScreen :: IO ()
-editorRefreshScreen = editorClearScreen
+editorRefreshScreen =
+    editorClearScreen
+    >> editorDrawRows 24
+    >> editorRepositionCursor
 
 {-- input --}
 
