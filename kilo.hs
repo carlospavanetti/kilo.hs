@@ -2,7 +2,8 @@ module Main where
 
 {-- imports --}
 
-import Data.Char (ord, isControl)
+import Data.Bits ((.&.))
+import Data.Char (chr, ord, isControl)
 import Control.Monad (when)
 import Control.Exception (finally, catch, IOException)
 import System.Posix.IO
@@ -34,6 +35,10 @@ enableRawMode = do
 disableRawMode :: TerminalAttributes -> IO ()
 disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
 
+{-- input --}
+
+controlKeyMask = chr . ((.&.) 0x1F) . ord
+
 {-- init --}
 
 main :: IO()
@@ -47,4 +52,4 @@ main = do
             if isControl char
                 then putStrLn $ (show $ ord char) ++ "\r"
                 else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")\r"
-            when (char /= 'q') loop
+            when (char /= controlKeyMask 'q') loop
