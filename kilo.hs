@@ -46,13 +46,16 @@ editorReadKey = do
 
 {-- output --}
 
-editorRefreshScreen :: IO ()
-editorRefreshScreen = let
+editorClearScreen :: IO ()
+editorClearScreen = let
         clearCmd      = "\x1B[2J"
         repositionCmd = "\x1B[H"
     in void
         $ fdWrite stdOutput clearCmd
         >> fdWrite stdOutput repositionCmd
+
+editorRefreshScreen :: IO ()
+editorRefreshScreen = editorClearScreen
 
 {-- input --}
 
@@ -60,7 +63,7 @@ controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 editorProcessKeypress :: Char -> IO ()
 editorProcessKeypress c
-        | c == controlKeyMask 'q' = exitSuccess
+        | c == controlKeyMask 'q' = editorClearScreen >> exitSuccess
         | otherwise = return ()
 
 {-- init --}
