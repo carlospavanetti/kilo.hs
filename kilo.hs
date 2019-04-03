@@ -1,5 +1,6 @@
 module Main where
 
+import Data.Char (ord, isControl)
 import Control.Monad (when)
 import System.Posix.IO
 import System.Posix.Terminal
@@ -23,5 +24,8 @@ main = do
     loop
     disableRawMode originalAttributes
     where loop = do
-            (char, count) <- fdRead stdInput 1
-            when (count == 1 && char /= "q" ) loop
+            (char:[], count) <- fdRead stdInput 1
+            if isControl char
+                then putStrLn $ show $ ord char
+                else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")"
+            when (count == 1 && char /= 'q' ) loop
