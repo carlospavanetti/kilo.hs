@@ -11,6 +11,7 @@ enableRawMode = do
     let newAttributes =
             flip withoutMode EnableEcho $
             flip withoutMode ProcessInput $
+            flip withoutMode KeyboardInterrupts $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
