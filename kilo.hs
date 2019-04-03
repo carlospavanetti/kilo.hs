@@ -5,6 +5,7 @@ module Main where
 import Data.Bits ((.&.))
 import Data.Char (chr, ord)
 import Control.Exception (finally, catch, IOException)
+import Control.Monad (void)
 
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
@@ -43,6 +44,11 @@ editorReadKey = do
         then die("read")
         else return char
 
+{-- output --}
+
+editorRefreshScreen :: IO ()
+editorRefreshScreen = void $ fdWrite stdOutput "\x1B[2J"
+
 {-- input --}
 
 controlKeyMask = chr . ((.&.) 0x1F) . ord
@@ -60,4 +66,6 @@ main = do
     safeLoop `finally` disableRawMode originalAttributes
     where
         safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
-        loop = editorReadKey >>= editorProcessKeypress >> loop
+        loop = editorRefreshScreen
+                >> editorReadKey >>= editorProcessKeypress
+                >> loop
