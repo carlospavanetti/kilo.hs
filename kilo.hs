@@ -43,14 +43,14 @@ editorReadKey = do
         then die("read")
         else return char
 
+{-- input --}
+
+controlKeyMask = chr . ((.&.) 0x1F) . ord
+
 editorProcessKeypress :: Char -> IO ()
 editorProcessKeypress c
         | c == controlKeyMask 'q' = exitSuccess
         | otherwise = return ()
-
-{-- input --}
-
-controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 {-- init --}
 
