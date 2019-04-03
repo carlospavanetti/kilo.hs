@@ -1,10 +1,14 @@
 module Main where
 
+{-- imports --}
+
 import Data.Char (ord, isControl)
 import Control.Monad (when)
 import Control.Exception (finally, catch, IOException)
 import System.Posix.IO
 import System.Posix.Terminal
+
+{-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
 enableRawMode = do
@@ -29,6 +33,8 @@ enableRawMode = do
 
 disableRawMode :: TerminalAttributes -> IO ()
 disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
+
+{-- init --}
 
 main :: IO()
 main = do
