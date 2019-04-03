@@ -20,6 +20,8 @@ disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
 main :: IO()
 main = do
     originalAttributes <- enableRawMode
-    (char, count) <- fdRead stdInput 1
-    when (count == 1 && char /= "q" ) main
+    loop
     disableRawMode originalAttributes
+    where loop = do
+            (char, count) <- fdRead stdInput 1
+            when (count == 1 && char /= "q" ) loop
