@@ -3,8 +3,7 @@ module Main where
 {-- imports --}
 
 import Data.Bits ((.&.))
-import Data.Char (chr, ord, isControl)
-import Control.Monad (when)
+import Data.Char (chr, ord)
 import Control.Exception (finally, catch, IOException)
 
 import Foreign.C.Error (eAGAIN, getErrno)
