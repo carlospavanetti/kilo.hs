@@ -2,7 +2,7 @@ module Main where
 
 import Data.Char (ord, isControl)
 import Control.Monad (when)
-import Control.Exception (finally)
+import Control.Exception (finally, catch, IOException)
 import System.Posix.IO
 import System.Posix.Terminal
 
@@ -33,8 +33,10 @@ disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
 main :: IO()
 main = do
     originalAttributes <- enableRawMode
-    loop `finally` disableRawMode originalAttributes
-    where loop = do
+    safeLoop `finally` disableRawMode originalAttributes
+    where
+        safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
+        loop = do
             (char:[], count) <- fdRead stdInput 1
             if isControl char
                 then putStrLn $ (show $ ord char) ++ "\r"
