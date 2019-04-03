@@ -21,6 +21,8 @@ enableRawMode = do
             flip withoutMode CheckParity $
             flip withoutMode StripHighBit $
             flip withBits 8 $
+            flip withMinInput 0 $
+            flip withTime 1 $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
@@ -37,4 +39,4 @@ main = do
             if isControl char
                 then putStrLn $ (show $ ord char) ++ "\r"
                 else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")\r"
-            when (count == 1 && char /= 'q' ) loop
+            when (char /= 'q') loop
