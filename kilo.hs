@@ -17,24 +17,22 @@ import System.Posix.Terminal
 
 enableRawMode :: IO TerminalAttributes
 enableRawMode = do
-    current <- getTerminalAttributes stdInput
+    originalAttributes <- getTerminalAttributes stdInput
     let newAttributes =
-            flip withoutMode EnableEcho $
-            flip withoutMode ProcessInput $
-            flip withoutMode KeyboardInterrupts $
-            flip withoutMode StartStopOutput $
-            flip withoutMode ExtendedFunctions $
-            flip withoutMode MapCRtoLF $
-            flip withoutMode ProcessOutput $
-            flip withoutMode InterruptOnBreak $
-            flip withoutMode CheckParity $
-            flip withoutMode StripHighBit $
-            flip withBits 8 $
-            flip withMinInput 0 $
-            flip withTime 1 $
-            current
+            disableModes . set8BitsPerByte . setTimeout $ originalAttributes
     setTerminalAttributes stdInput newAttributes WhenFlushed
-    return current
+    return originalAttributes
+    where
+        set8BitsPerByte = flip withBits 8
+        setTimeout = (flip withMinInput 0) . (flip withTime 1)
+        disableModes = compose $ (flip withoutMode) <$> modesToDisable
+        modesToDisable = [
+                EnableEcho, ProcessInput, KeyboardInterrupts,
+                StartStopOutput, ExtendedFunctions, MapCRtoLF,
+                ProcessOutput, InterruptOnBreak, CheckParity,
+                StripHighBit
+            ]
+        compose = foldl (.) id
 
 disableRawMode :: TerminalAttributes -> IO ()
 disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
