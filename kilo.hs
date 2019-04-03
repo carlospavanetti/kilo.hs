@@ -16,6 +16,10 @@ enableRawMode = do
             flip withoutMode ExtendedFunctions $
             flip withoutMode MapCRtoLF $
             flip withoutMode ProcessOutput $
+            flip withoutMode InterruptOnBreak $
+            flip withoutMode CheckParity $
+            flip withoutMode StripHighBit $
+            flip withBits 8 $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
