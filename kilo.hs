@@ -7,7 +7,10 @@ import System.Posix.Terminal
 enableRawMode :: IO TerminalAttributes
 enableRawMode = do
     current <- getTerminalAttributes stdInput
-    let newAttributes = withoutMode current EnableEcho
+    let newAttributes =
+            flip withoutMode EnableEcho $
+            flip withoutMode ProcessInput $
+            current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
 
