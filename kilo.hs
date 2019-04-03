@@ -1,10 +1,9 @@
 module Main where
 
+import Control.Monad (when)
 import System.Posix.IO
 
 main :: IO()
 main = do
     (char, count) <- fdRead stdInput 1
-    if count == 1 then
-        main
-    else return ()
+    when (count == 1) main
