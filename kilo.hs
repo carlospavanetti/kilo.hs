@@ -31,6 +31,6 @@ main = do
     where loop = do
             (char:[], count) <- fdRead stdInput 1
             if isControl char
-                then putStrLn $ show $ ord char
-                else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")"
+                then putStrLn $ (show $ ord char) ++ "\r"
+                else putStrLn $ (show $ ord char) ++ " (" ++ char:[] ++ ")\r"
             when (count == 1 && char /= 'q' ) loop
