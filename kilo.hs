@@ -13,6 +13,7 @@ enableRawMode = do
             flip withoutMode ProcessInput $
             flip withoutMode KeyboardInterrupts $
             flip withoutMode StartStopOutput $
+            flip withoutMode ExtendedFunctions $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
