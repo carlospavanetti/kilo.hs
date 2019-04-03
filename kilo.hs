@@ -15,6 +15,7 @@ enableRawMode = do
             flip withoutMode StartStopOutput $
             flip withoutMode ExtendedFunctions $
             flip withoutMode MapCRtoLF $
+            flip withoutMode ProcessOutput $
             current
     setTerminalAttributes stdInput newAttributes WhenFlushed
     return current
