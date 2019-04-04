@@ -10,7 +10,7 @@ import Control.Monad (void)
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (die, exitSuccess)
-import System.Posix.IO
+import System.Posix.IO (fdRead, fdWrite, stdInput, stdOutput)
 import System.Posix.Terminal
 
 {-- terminal --}
