@@ -40,11 +40,12 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
             ]
 
 editorReadKey :: IO Char
-editorReadKey = do
-    (char:[], nread) <- fdRead stdInput 1
-    if (nread == -1) && (unsafePerformIO getErrno /= eAGAIN)
-        then die("read")
-        else return char
+editorReadKey = let
+    handleError (char:[], nread) =
+        if (nread == -1) && (unsafePerformIO getErrno /= eAGAIN)
+            then die("read")
+            else return char
+    in fdRead stdInput 1 >>= handleError
 
 {-- output --}
 
