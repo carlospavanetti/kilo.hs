@@ -16,14 +16,16 @@ import System.Posix.Terminal
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
-enableRawMode = do
-    originalAttributes <- getTerminalAttributes stdInput
-    let rawModeAttributes = withoutCanonicalMode originalAttributes
-    setTerminalAttributes stdInput rawModeAttributes WhenFlushed
-    return originalAttributes
+enableRawMode = getTerminalAttributes stdInput
+    >>= \originalAttributes ->
+        setStdIOAttributes (withoutCanonicalMode originalAttributes)
+        >> return originalAttributes
 
 disableRawMode :: TerminalAttributes -> IO ()
-disableRawMode attrs = setTerminalAttributes stdInput attrs WhenFlushed
+disableRawMode = setStdIOAttributes
+
+setStdIOAttributes :: TerminalAttributes -> IO ()
+setStdIOAttributes = flip (setTerminalAttributes stdInput) WhenFlushed
 
 withoutCanonicalMode :: TerminalAttributes -> TerminalAttributes
 withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
