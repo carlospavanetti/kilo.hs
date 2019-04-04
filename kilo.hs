@@ -70,6 +70,7 @@ editorRefreshScreen =
 
 {-- input --}
 
+controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 editorProcessKeypress :: Char -> IO ()
