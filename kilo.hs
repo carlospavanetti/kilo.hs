@@ -72,6 +72,10 @@ getWindowSize :: IO (Int, Int)
 getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
     in fdWrite stdOutput moveToBottomRightCmd >> getCursorPosition
 
+{-- append buffer --}
+
+type AppendBuffer = String
+
 {-- output --}
 
 editorDrawRows :: Int -> IO ()
