@@ -60,7 +60,11 @@ getCursorPosition = let
         if char == 'R'
             then return acc
             else readUntilR (acc ++ [char])
-    parsePosition x = putStrLn ('\r':show x) >> return (0, 0)
+    parsePosition ('\x1b': '[': xs) = do
+        let (rows, (_:cols)) = break (== ';') xs
+        fdWrite stdOutput "\r"
+        return (read rows :: Int, read cols :: Int)
+    parsePosition _ = die "getCursorPosition"
     in fdWrite stdOutput cursorPositionReportCmd
         >> readUntilR "" >>= parsePosition
 
@@ -105,7 +109,7 @@ editorProcessKeypress c
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
-    (getCursorPosition >>= \x -> putStrLn ('\r': show x) >> editorReadKey
+    (getWindowSize >>= \x -> putStrLn ('\r': show x) >> editorReadKey
         >> safeLoop) `finally` disableRawMode originalAttributes
     where
     safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
