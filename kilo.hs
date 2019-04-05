@@ -76,8 +76,8 @@ getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
 
 editorDrawRows :: Int -> IO ()
 editorDrawRows 0 = return ()
-editorDrawRows n =
-    fdWrite stdOutput "~\r\n" >> editorDrawRows (n - 1)
+editorDrawRows n = let tilde 1 = "~"; tilde n = "~\r\n"
+    in fdWrite stdOutput (tilde n) >> editorDrawRows (n - 1)
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
