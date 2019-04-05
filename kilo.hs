@@ -43,13 +43,14 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
 
 editorReadKey :: IO Char
 editorReadKey = let
+    unsafeReadKey = fdRead stdInput 1 >>= handleError
     handleError (char:[], nread) =
         if (nread == -1) 
             then if (unsafePerformIO getErrno /= eAGAIN)
                 then die("read")
                 else editorReadKey
             else return char
-    in fdRead stdInput 1 >>= handleError
+    in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
 
 getCursorPosition :: IO (Int, Int)
 getCursorPosition = let
