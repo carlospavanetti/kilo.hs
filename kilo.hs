@@ -91,7 +91,8 @@ editorClearScreen = let clearCmd = "\x1B[2J"
 editorRefreshScreen :: IO ()
 editorRefreshScreen =
     editorClearScreen
-    >> editorDrawRows 24
+    >> getWindowSize
+    >>= editorDrawRows . fst
     >> editorRepositionCursor
 
 {-- input --}
