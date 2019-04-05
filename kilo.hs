@@ -30,16 +30,16 @@ setStdIOAttributes = flip (setTerminalAttributes stdInput) WhenFlushed
 withoutCanonicalMode :: TerminalAttributes -> TerminalAttributes
 withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
     where
-        set8BitsPerByte = flip withBits 8
-        setTimeout = (flip withMinInput 0) . (flip withTime 1)
-        disableModes = compose $ (flip withoutMode) <$> modesToDisable
-        compose = foldl (.) id
-        modesToDisable = [
-                EnableEcho, ProcessInput, KeyboardInterrupts,
-                StartStopOutput, ExtendedFunctions, MapCRtoLF,
-                ProcessOutput, InterruptOnBreak, CheckParity,
-                StripHighBit
-            ]
+    set8BitsPerByte = flip withBits 8
+    setTimeout = (flip withMinInput 0) . (flip withTime 1)
+    disableModes = compose $ (flip withoutMode) <$> modesToDisable
+    compose = foldl (.) id
+    modesToDisable = [
+            EnableEcho, ProcessInput, KeyboardInterrupts,
+            StartStopOutput, ExtendedFunctions, MapCRtoLF,
+            ProcessOutput, InterruptOnBreak, CheckParity,
+            StripHighBit
+        ]
 
 editorReadKey :: IO Char
 editorReadKey = let
@@ -88,7 +88,7 @@ main = do
     originalAttributes <- enableRawMode
     safeLoop `finally` disableRawMode originalAttributes
     where
-        safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
-        loop = editorRefreshScreen
-                >> editorReadKey >>= editorProcessKeypress
-                >> loop
+    safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
+    loop = editorRefreshScreen
+            >> editorReadKey >>= editorProcessKeypress
+            >> loop
