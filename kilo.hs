@@ -104,7 +104,8 @@ editorProcessKeypress c
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
-    safeLoop `finally` disableRawMode originalAttributes
+    (getCursorPosition >>= \x -> putStrLn ('\r': show x) >> editorReadKey
+        >> safeLoop) `finally` disableRawMode originalAttributes
     where
     safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
     loop = editorRefreshScreen
