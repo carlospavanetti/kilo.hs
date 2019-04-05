@@ -50,8 +50,16 @@ editorReadKey = let
     in fdRead stdInput 1 >>= handleError
 
 getCursorPosition :: IO (Int, Int)
-getCursorPosition = let cursorPositionReportCmd = "\x1B[6n"
-    in fdWrite stdOutput cursorPositionReportCmd >> return (0, 0)
+getCursorPosition = let
+    cursorPositionReportCmd = "\x1B[6n"
+    readUntilR acc = do
+        char <- editorReadKey
+        if char == 'R'
+            then return acc
+            else readUntilR (acc ++ [char])
+    parsePosition x = putStrLn ('\r':show x) >> return (0, 0)
+    in fdWrite stdOutput cursorPositionReportCmd
+        >> readUntilR "" >>= parsePosition
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
