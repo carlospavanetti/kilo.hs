@@ -49,6 +49,14 @@ editorReadKey = let
             else return char
     in fdRead stdInput 1 >>= handleError
 
+getCursorPosition :: IO (Int, Int)
+getCursorPosition = let cursorPositionReportCmd = "\x1B[6n"
+    in fdWrite stdOutput cursorPositionReportCmd >> return (0, 0)
+
+getWindowSize :: IO (Int, Int)
+getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
+    in fdWrite stdOutput moveToBottomRightCmd >> getCursorPosition
+
 {-- output --}
 
 editorDrawRows :: Int -> IO ()
