@@ -78,10 +78,10 @@ type AppendBuffer = String
 
 {-- output --}
 
-editorDrawRows :: Int -> IO ()
-editorDrawRows 0 = return ()
-editorDrawRows n = let tilde 1 = "~"; tilde n = "~\r\n"
-    in fdWrite stdOutput (tilde n) >> editorDrawRows (n - 1)
+editorDrawRows :: Int -> AppendBuffer
+editorDrawRows 0  = ""
+editorDrawRows 1  = "~"
+editorDrawRows n  = "~\r\n" ++ (editorDrawRows $ n - 1)
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
@@ -96,7 +96,7 @@ editorRefreshScreen :: IO ()
 editorRefreshScreen =
     editorClearScreen
     >> getWindowSize
-    >>= editorDrawRows . fst
+    >>= (fdWrite stdOutput) . editorDrawRows . fst
     >> editorRepositionCursor
 
 {-- input --}
