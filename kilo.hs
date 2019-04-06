@@ -92,11 +92,10 @@ editorClearScreen = let clearCmd = "\x1B[2J"
     in fdWrite stdOutput clearCmd
         >> editorRepositionCursor
 
-editorRefreshScreen :: IO ()
-editorRefreshScreen =
+editorRefreshScreen :: Int -> Int -> IO ()
+editorRefreshScreen rows cols =
     editorClearScreen
-    >> getWindowSize
-    >>= (fdWrite stdOutput) . editorDrawRows . fst
+    >> fdWrite stdOutput (editorDrawRows rows)
     >> editorRepositionCursor
 
 {-- input --}
@@ -114,9 +113,11 @@ editorProcessKeypress c
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
-    safeLoop `finally` disableRawMode originalAttributes
+    windowSize <- getWindowSize
+    (safeLoop windowSize) `finally` disableRawMode originalAttributes
     where
-    safeLoop = loop `catch` (const $ safeLoop :: IOException -> IO ())
-    loop = editorRefreshScreen
+    safeLoop ws = (loop ws) `catch` (
+        const $ safeLoop ws :: IOException -> IO ())
+    loop ws = editorRefreshScreen `uncurry` ws
             >> editorReadKey >>= editorProcessKeypress
-            >> loop
+            >> loop ws
