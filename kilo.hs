@@ -87,6 +87,14 @@ editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
     in void $ fdWrite stdOutput repositionCmd
 
+editorHideCursor :: IO ()
+editorHideCursor = let hideCursorCmd = "\x1B[?25l"
+    in void $ fdWrite stdOutput hideCursorCmd
+
+editorShowCursor :: IO ()
+editorShowCursor = let showCursorCmd = "\x1B[?25h"
+    in void $ fdWrite stdOutput showCursorCmd
+
 editorClearScreen :: IO ()
 editorClearScreen = let clearCmd = "\x1B[2J"
     in fdWrite stdOutput clearCmd
@@ -94,9 +102,11 @@ editorClearScreen = let clearCmd = "\x1B[2J"
 
 editorRefreshScreen :: Int -> Int -> IO ()
 editorRefreshScreen rows cols =
-    editorClearScreen
+    editorHideCursor
+    >> editorClearScreen
     >> fdWrite stdOutput (editorDrawRows rows)
     >> editorRepositionCursor
+    >> editorShowCursor
 
 {-- input --}
 
