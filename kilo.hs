@@ -57,9 +57,9 @@ getCursorPosition = let
     cursorPositionReportCmd = "\x1B[6n"
     readUntilR acc = do
         char <- editorReadKey
-        if char == 'R'
-            then return acc
-            else readUntilR (acc ++ [char])
+        case char of
+            'R' -> return acc
+            _   -> readUntilR (acc ++ [char])
     parsePosition ('\x1b': '[': xs) = do
         let (rows, (_:cols)) = break (== ';') xs
         fdWrite stdOutput "\r"
