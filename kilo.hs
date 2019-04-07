@@ -88,17 +88,23 @@ type AppendBuffer = String
 clearLineCommand :: AppendBuffer
 clearLineCommand = "\x1B[K"
 
-editorRow :: Int -> Int -> AppendBuffer
-editorRow windowRows n
-    | n == windowRows `div` 3 = welcomeLine ++ "\r\n"
+editorRow :: Int -> Int -> Int -> AppendBuffer
+editorRow windowRows windowCols n
+    | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
     | n == windowRows = tilde
     | otherwise = tilde ++ "\r\n"
     where
         tilde = '~': clearLineCommand
         welcomeLine = welcomeMessage ++ clearLineCommand
+        padding
+            | (paddingSize == 0) = ""
+            | otherwise = '~': spaces
+        paddingSize = min windowCols (
+            (windowCols - length welcomeMessage) `div` 2)
+        spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
-editorDrawRows :: Int -> AppendBuffer
-editorDrawRows rows = foldr (++) "" (map (editorRow rows) [1.. rows])
+editorDrawRows :: Int -> Int -> AppendBuffer
+editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
@@ -121,7 +127,7 @@ editorRefreshScreen :: Int -> Int -> IO ()
 editorRefreshScreen rows cols =
     editorHideCursor
     >> editorRepositionCursor
-    >> fdWrite stdOutput (editorDrawRows rows)
+    >> fdWrite stdOutput (editorDrawRows rows cols)
     >> editorRepositionCursor
     >> editorShowCursor
 
