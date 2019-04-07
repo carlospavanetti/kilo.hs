@@ -78,10 +78,13 @@ type AppendBuffer = String
 
 {-- output --}
 
+clearLineCommand :: AppendBuffer
+clearLineCommand = "\x1B[K"
+
 editorDrawRows :: Int -> AppendBuffer
 editorDrawRows 0  = ""
-editorDrawRows 1  = "~"
-editorDrawRows n  = "~\r\n" ++ (editorDrawRows $ n - 1)
+editorDrawRows 1  = '~': clearLineCommand
+editorDrawRows n  = (editorDrawRows 1) ++ "\r\n" ++ (editorDrawRows $ n - 1)
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
@@ -103,7 +106,7 @@ editorClearScreen = let clearCmd = "\x1B[2J"
 editorRefreshScreen :: Int -> Int -> IO ()
 editorRefreshScreen rows cols =
     editorHideCursor
-    >> editorClearScreen
+    >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows rows)
     >> editorRepositionCursor
     >> editorShowCursor
