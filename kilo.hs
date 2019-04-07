@@ -13,6 +13,13 @@ import System.Exit (die, exitSuccess)
 import System.Posix.IO (fdRead, fdWrite, stdInput, stdOutput)
 import System.Posix.Terminal
 
+{-- defines --}
+
+kiloVersion :: String
+kiloVersion = "0.0.1"
+
+welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
+
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
@@ -81,10 +88,17 @@ type AppendBuffer = String
 clearLineCommand :: AppendBuffer
 clearLineCommand = "\x1B[K"
 
+editorRow :: Int -> Int -> AppendBuffer
+editorRow windowRows n
+    | n == windowRows `div` 3 = welcomeLine ++ "\r\n"
+    | n == windowRows = tilde
+    | otherwise = tilde ++ "\r\n"
+    where
+        tilde = '~': clearLineCommand
+        welcomeLine = welcomeMessage ++ clearLineCommand
+
 editorDrawRows :: Int -> AppendBuffer
-editorDrawRows 0  = ""
-editorDrawRows 1  = '~': clearLineCommand
-editorDrawRows n  = (editorDrawRows 1) ++ "\r\n" ++ (editorDrawRows $ n - 1)
+editorDrawRows rows = foldr (++) "" (map (editorRow rows) [1.. rows])
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
