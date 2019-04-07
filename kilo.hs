@@ -59,6 +59,11 @@ editorReadKey = let
             else return char
     in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
 
+editorPositionCursor :: Int -> Int -> IO ()
+editorPositionCursor x y =
+    let positionCmd = "\x1B[" ++ (show x) ++ ";" ++ (show y) ++ "H"
+    in void $ fdWrite stdOutput positionCmd
+
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
     in void $ fdWrite stdOutput repositionCmd
@@ -128,7 +133,7 @@ editorRefreshScreen rows cols =
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows rows cols)
-    >> editorRepositionCursor
+    >> editorPositionCursor 1 1
     >> editorShowCursor
 
 {-- input --}
