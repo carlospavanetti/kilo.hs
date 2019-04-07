@@ -59,6 +59,23 @@ editorReadKey = let
             else return char
     in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
 
+editorRepositionCursor :: IO ()
+editorRepositionCursor = let repositionCmd = "\x1B[H"
+    in void $ fdWrite stdOutput repositionCmd
+
+editorHideCursor :: IO ()
+editorHideCursor = let hideCursorCmd = "\x1B[?25l"
+    in void $ fdWrite stdOutput hideCursorCmd
+
+editorShowCursor :: IO ()
+editorShowCursor = let showCursorCmd = "\x1B[?25h"
+    in void $ fdWrite stdOutput showCursorCmd
+
+editorClearScreen :: IO ()
+editorClearScreen = let clearCmd = "\x1B[2J"
+    in fdWrite stdOutput clearCmd
+        >> editorRepositionCursor
+
 getCursorPosition :: IO (Int, Int)
 getCursorPosition = let
     cursorPositionReportCmd = "\x1B[6n"
@@ -105,23 +122,6 @@ editorRow windowRows windowCols n
 
 editorDrawRows :: Int -> Int -> AppendBuffer
 editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
-
-editorRepositionCursor :: IO ()
-editorRepositionCursor = let repositionCmd = "\x1B[H"
-    in void $ fdWrite stdOutput repositionCmd
-
-editorHideCursor :: IO ()
-editorHideCursor = let hideCursorCmd = "\x1B[?25l"
-    in void $ fdWrite stdOutput hideCursorCmd
-
-editorShowCursor :: IO ()
-editorShowCursor = let showCursorCmd = "\x1B[?25h"
-    in void $ fdWrite stdOutput showCursorCmd
-
-editorClearScreen :: IO ()
-editorClearScreen = let clearCmd = "\x1B[2J"
-    in fdWrite stdOutput clearCmd
-        >> editorRepositionCursor
 
 editorRefreshScreen :: Int -> Int -> IO ()
 editorRefreshScreen rows cols =
