@@ -59,8 +59,8 @@ editorReadKey = let
             else return char
     in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
 
-editorPositionCursor :: Int -> Int -> IO ()
-editorPositionCursor x y =
+editorPositionCursor :: (Int, Int) -> IO ()
+editorPositionCursor (x, y) =
     let positionCmd = "\x1B[" ++ (show x) ++ ";" ++ (show y) ++ "H"
     in void $ fdWrite stdOutput positionCmd
 
@@ -133,7 +133,7 @@ editorRefreshScreen rows cols =
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows rows cols)
-    >> editorPositionCursor 1 1
+    >> editorPositionCursor (1, 1)
     >> editorShowCursor
 
 {-- input --}
@@ -141,9 +141,18 @@ editorRefreshScreen rows cols =
 controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
-editorProcessKeypress :: Char -> IO ()
-editorProcessKeypress c
-        | c == controlKeyMask 'q' = editorClearScreen >> exitSuccess
+editorMoveCursor :: Char -> (Int, Int) -> (Int, Int)
+editorMoveCursor move (x, y) =
+    case move of
+        'a' -> (x - 1, y)
+        'd' -> (x + 1, y)
+        'w' -> (x, y - 1)
+        's' -> (x, y + 1)
+
+editorProcessKeypress :: (Int, Int) -> Char -> IO ()
+editorProcessKeypress cursor c
+        | (c == controlKeyMask 'q') = editorClearScreen >> exitSuccess
+        | (c `elem` "wasd") = editorPositionCursor (editorMoveCursor c cursor)
         | otherwise = return ()
 
 {-- init --}
@@ -157,5 +166,5 @@ main = do
     safeLoop ws = (loop ws) `catch` (
         const $ safeLoop ws :: IOException -> IO ())
     loop ws = editorRefreshScreen `uncurry` ws
-            >> editorReadKey >>= editorProcessKeypress
+            >> editorReadKey >>= editorProcessKeypress (1, 1)
             >> loop ws
