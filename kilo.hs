@@ -20,6 +20,10 @@ kiloVersion = "0.0.1"
 
 welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
 
+{-- data --}
+
+data EditorConfig = EditorConfig { cursor :: (Int, Int) } deriving Show
+
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
@@ -61,7 +65,7 @@ editorReadKey = let
 
 editorPositionCursor :: (Int, Int) -> IO ()
 editorPositionCursor (x, y) =
-    let positionCmd = "\x1B[" ++ (show x) ++ ";" ++ (show y) ++ "H"
+    let positionCmd = "\x1B[" ++ (show y) ++ ";" ++ (show x) ++ "H"
     in void $ fdWrite stdOutput positionCmd
 
 editorRepositionCursor :: IO ()
@@ -128,12 +132,12 @@ editorRow windowRows windowCols n
 editorDrawRows :: Int -> Int -> AppendBuffer
 editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
 
-editorRefreshScreen :: Int -> Int -> IO ()
-editorRefreshScreen rows cols =
+editorRefreshScreen :: EditorConfig -> Int -> Int -> IO ()
+editorRefreshScreen config rows cols =
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows rows cols)
-    >> editorPositionCursor (1, 1)
+    >> editorPositionCursor (cursor config)
     >> editorShowCursor
 
 {-- input --}
@@ -149,13 +153,21 @@ editorMoveCursor move (x, y) =
         'w' -> (x, y - 1)
         's' -> (x, y + 1)
 
-editorProcessKeypress :: (Int, Int) -> Char -> IO ()
-editorProcessKeypress cursor c
-        | (c == controlKeyMask 'q') = editorClearScreen >> exitSuccess
-        | (c `elem` "wasd") = editorPositionCursor (editorMoveCursor c cursor)
-        | otherwise = return ()
+editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
+editorProcessKeypress config char
+    | (char == controlKeyMask 'q') = 
+        editorClearScreen >> exitSuccess >> return config
+    | (char `elem` "wasd") = return newEditorConfig
+    | otherwise = return config
+    where
+        newCursorPosition :: (Int, Int)
+        newCursorPosition = editorMoveCursor char (cursor config)
+        newEditorConfig = EditorConfig { cursor = newCursorPosition }
 
 {-- init --}
+
+initEditorConfig :: EditorConfig
+initEditorConfig = EditorConfig { cursor=(1, 1) }
 
 main :: IO ()
 main = do
@@ -163,8 +175,8 @@ main = do
     windowSize <- getWindowSize
     (safeLoop windowSize) `finally` disableRawMode originalAttributes
     where
-    safeLoop ws = (loop ws) `catch` (
+    safeLoop ws = (loop ws initEditorConfig) `catch` (
         const $ safeLoop ws :: IOException -> IO ())
-    loop ws = editorRefreshScreen `uncurry` ws
-            >> editorReadKey >>= editorProcessKeypress (1, 1)
-            >> loop ws
+    loop ws editorConfig = editorRefreshScreen editorConfig `uncurry` ws
+            >> editorReadKey >>= editorProcessKeypress editorConfig
+            >>= loop ws
