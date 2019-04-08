@@ -22,7 +22,9 @@ welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
 
 {-- data --}
 
-data EditorConfig = EditorConfig { cursor :: (Int, Int) } deriving Show
+data EditorConfig = EditorConfig
+    { cursor :: (Int, Int)
+    , windowSize :: (Int, Int) } deriving Show
 
 {-- terminal --}
 
@@ -132,26 +134,28 @@ editorRow windowRows windowCols n
 editorDrawRows :: Int -> Int -> AppendBuffer
 editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
 
-editorRefreshScreen :: EditorConfig -> Int -> Int -> IO ()
-editorRefreshScreen config rows cols =
-    editorHideCursor
-    >> editorRepositionCursor
-    >> fdWrite stdOutput (editorDrawRows rows cols)
-    >> editorPositionCursor (cursor config)
-    >> editorShowCursor
+editorRefreshScreen :: EditorConfig -> IO ()
+editorRefreshScreen EditorConfig
+    { cursor = cursor
+    , windowSize = (rows, cols) } =
+        editorHideCursor
+        >> editorRepositionCursor
+        >> fdWrite stdOutput (editorDrawRows rows cols)
+        >> editorPositionCursor cursor
+        >> editorShowCursor
 
 {-- input --}
 
 controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
-editorMoveCursor :: Char -> (Int, Int) -> (Int, Int)
-editorMoveCursor move (x, y) =
+editorMoveCursor :: Char -> EditorConfig -> EditorConfig
+editorMoveCursor move config@(EditorConfig { cursor = (x, y) }) =
     case move of
-        'a' -> (x - 1, y)
-        'd' -> (x + 1, y)
-        'w' -> (x, y - 1)
-        's' -> (x, y + 1)
+        'a' -> config { cursor = (x - 1, y) }
+        'd' -> config { cursor = (x + 1, y) }
+        'w' -> config { cursor = (x, y - 1) }
+        's' -> config { cursor = (x, y + 1) }
 
 editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
 editorProcessKeypress config char
@@ -160,14 +164,15 @@ editorProcessKeypress config char
     | (char `elem` "wasd") = return newEditorConfig
     | otherwise = return config
     where
-        newCursorPosition :: (Int, Int)
-        newCursorPosition = editorMoveCursor char (cursor config)
-        newEditorConfig = EditorConfig { cursor = newCursorPosition }
+        newEditorConfig :: EditorConfig
+        newEditorConfig = editorMoveCursor char config
 
 {-- init --}
 
-initEditorConfig :: EditorConfig
-initEditorConfig = EditorConfig { cursor=(1, 1) }
+initEditorConfig :: (Int, Int) -> EditorConfig
+initEditorConfig windowSize = EditorConfig
+    { cursor = (1, 1)
+    , windowSize = windowSize }
 
 main :: IO ()
 main = do
@@ -175,8 +180,8 @@ main = do
     windowSize <- getWindowSize
     (safeLoop windowSize) `finally` disableRawMode originalAttributes
     where
-    safeLoop ws = (loop ws initEditorConfig) `catch` (
+    safeLoop ws = (loop $ initEditorConfig ws) `catch` (
         const $ safeLoop ws :: IOException -> IO ())
-    loop ws editorConfig = editorRefreshScreen editorConfig `uncurry` ws
+    loop editorConfig = editorRefreshScreen editorConfig
             >> editorReadKey >>= editorProcessKeypress editorConfig
-            >>= loop ws
+            >>= loop
