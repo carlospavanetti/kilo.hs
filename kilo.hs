@@ -70,28 +70,21 @@ editorReadKey = let
 
 editorPositionCursor :: (Int, Int) -> IO ()
 editorPositionCursor (x, y) =
-    let positionCmd = "\x1B[" ++ show y ++ ";" ++ show x ++ "H"
-    in void $ fdWrite stdOutput positionCmd
+    let positionCmd = show y ++ ";" ++ show x ++ "H"
+    in writeTerminalCommand positionCmd
 
 {-- TODO: Refatorar o padraozinho abaixo de let in void $ fdWrite --}
 editorRepositionCursor :: IO ()
--- editorRepositionCursor = let repositionCmd = "\x1B[H"
---     in void $ fdWrite stdOutput repositionCmd
 editorRepositionCursor = writeTerminalCommand "H"
 
 editorHideCursor :: IO ()
--- editorHideCursor = let hideCursorCmd = "\x1B[?25l"
---     in void $ fdWrite stdOutput hideCursorCmd
 editorHideCursor = writeTerminalCommand "?25l"
 
 editorShowCursor :: IO ()
--- editorShowCursor = let showCursorCmd = "\x1B[?25h"
---     in void $ fdWrite stdOutput showCursorCmd
 editorShowCursor = writeTerminalCommand "?25h"
 
 editorClearScreen :: IO ()
 editorClearScreen = let clearCmd = "\x1B[2J"
-    -- in fdWrite stdOutput clearCmd
     in writeTerminalCommand "2J"
         >> editorRepositionCursor
 
