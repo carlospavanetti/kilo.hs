@@ -47,7 +47,7 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
     set8BitsPerByte = flip withBits 8
     setTimeout = (flip withMinInput 0) . (flip withTime 1)
     disableModes = compose $ (flip withoutMode) <$> modesToDisable
-    compose = foldl (.) id
+    compose = foldr (.) id
     modesToDisable =
         [   EnableEcho, ProcessInput, KeyboardInterrupts
         ,   StartStopOutput, ExtendedFunctions, MapCRtoLF
@@ -58,7 +58,7 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
 editorReadKey :: IO Char
 editorReadKey = let
     unsafeReadKey = fdRead stdInput 1 >>= handleError
-    handleError (char:[], nread)
+    handleError ([char], nread)
         | (nread == -1) = repeatOrDie
         | otherwise = return char
     repeatOrDie
@@ -101,17 +101,15 @@ getCursorPosition = let
             'R' -> return acc
             _   -> readUntilR (acc ++ [char])
     parsePosition ('\x1b': '[': xs) = do
-        let (rows, (_:cols)) = break (== ';') xs
+        let (rows, _: cols) = break (== ';') xs
         fdWrite stdOutput "\r"
         return (read rows :: Int, read cols :: Int)
     parsePosition _ = die "getCursorPosition"
     in terminalCommand "6n" >> readUntilR "" >>= parsePosition
 
 getWindowSize :: IO (Int, Int)
-getWindowSize =
-    moveToLimit >> getCursorPosition
-  where
-    moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
+getWindowSize = moveToLimit >> getCursorPosition
+  where moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
 
 {-- append buffer --}
 
@@ -138,7 +136,7 @@ editorRow windowRows windowCols n
     spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
 editorDrawRows :: Int -> Int -> AppendBuffer
-editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
+editorDrawRows rows cols = concatMap (editorRow rows cols) [1.. rows]
 
 editorRefreshScreen :: EditorConfig -> IO ()
 editorRefreshScreen EditorConfig
