@@ -75,25 +75,39 @@ editorPositionCursor (x, y) =
 
 {-- TODO: Refatorar o padraozinho abaixo de let in void $ fdWrite --}
 editorRepositionCursor :: IO ()
-editorRepositionCursor = let repositionCmd = "\x1B[H"
-    in void $ fdWrite stdOutput repositionCmd
+-- editorRepositionCursor = let repositionCmd = "\x1B[H"
+--     in void $ fdWrite stdOutput repositionCmd
+editorRepositionCursor = writeTerminalCommand "H"
 
 editorHideCursor :: IO ()
-editorHideCursor = let hideCursorCmd = "\x1B[?25l"
-    in void $ fdWrite stdOutput hideCursorCmd
+-- editorHideCursor = let hideCursorCmd = "\x1B[?25l"
+--     in void $ fdWrite stdOutput hideCursorCmd
+editorHideCursor = writeTerminalCommand "?25l"
 
 editorShowCursor :: IO ()
-editorShowCursor = let showCursorCmd = "\x1B[?25h"
-    in void $ fdWrite stdOutput showCursorCmd
+-- editorShowCursor = let showCursorCmd = "\x1B[?25h"
+--     in void $ fdWrite stdOutput showCursorCmd
+editorShowCursor = writeTerminalCommand "?25h"
 
 editorClearScreen :: IO ()
 editorClearScreen = let clearCmd = "\x1B[2J"
-    in fdWrite stdOutput clearCmd
+    -- in fdWrite stdOutput clearCmd
+    in writeTerminalCommand "2J"
         >> editorRepositionCursor
 
+writeTerminalCommand :: AppendBuffer -> IO ()
+writeTerminalCommand cmd = void $ fdWrite stdOutput (escape cmd)
+
+escape :: AppendBuffer -> AppendBuffer
+escape cmd = '\x1B': '[': cmd
+
+unescape :: AppendBuffer -> Maybe AppendBuffer
+unescape ('\x1B': '[': cmd) = Just cmd
+unescape _ = Nothing
+
 {-- TODO: Tem que refatorar isso aqui --}
-getCursorPosition :: IO (Int, Int)
-getCursorPosition = let
+getCursorPosition'' :: IO (Int, Int)
+getCursorPosition'' = let
     cursorPositionReportCmd = "\x1B[6n"
     readUntilR acc = do
         char <- editorReadKey
@@ -107,6 +121,28 @@ getCursorPosition = let
     parsePosition _ = die "getCursorPosition"
     in fdWrite stdOutput cursorPositionReportCmd
         >> readUntilR "" >>= parsePosition
+
+getCursorPosition :: IO (Int, Int)
+getCursorPosition =
+    writeTerminalCommand "6n"
+    >> readCursorReport
+    >>= parsePosition
+  where
+    readCursorReport :: IO (Maybe AppendBuffer)
+    -- readCursorReport = readKeysUntilR "" >>= return . unescape
+    readCursorReport = unescape <$> readKeysUntilR ""
+    readKeysUntilR :: AppendBuffer -> IO AppendBuffer
+    readKeysUntilR acc =
+        editorReadKey
+        >>= \char -> case char of
+            'R' -> return acc 
+            _   -> readKeysUntilR (acc ++ [char])
+    parsePosition :: Maybe AppendBuffer -> IO (Int, Int)
+    parsePosition (Just report) = do
+        let (rows, _: cols) = break (== ';') report
+        fdWrite stdOutput "\r"
+        return (read rows, read cols)
+    parsePosition Nothing = die "getCursorPosition'"
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
