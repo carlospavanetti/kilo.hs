@@ -185,11 +185,12 @@ main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    safeLoop windowSize `finally` disableRawMode originalAttributes
+    let config = initEditorConfig windowSize
+    safeLoop config `finally` disableRawMode originalAttributes
   where
-    safeLoop ws = loop (initEditorConfig ws)
-        `catch` (const $ safeLoop ws :: IOException -> IO ())
-    loop editorConfig =
-        editorRefreshScreen editorConfig
-        >> editorReadKey >>= editorProcessKeypress editorConfig
+    safeLoop config = loop config
+        `catch` (const $ safeLoop config :: IOException -> IO ())
+    loop config =
+        editorRefreshScreen config
+        >> editorReadKey >>= editorProcessKeypress config
         >>= loop
