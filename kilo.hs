@@ -45,8 +45,8 @@ withoutCanonicalMode :: TerminalAttributes -> TerminalAttributes
 withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
     where
     set8BitsPerByte = flip withBits 8
-    setTimeout = (flip withMinInput 0) . (flip withTime 1)
-    disableModes = compose $ (flip withoutMode) <$> modesToDisable
+    setTimeout = flip withMinInput 0 . flip withTime 1
+    disableModes = compose $ flip withoutMode <$> modesToDisable
     compose = foldl (.) id
     modesToDisable =
         [   EnableEcho, ProcessInput, KeyboardInterrupts
@@ -58,17 +58,17 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
 editorReadKey :: IO Char
 editorReadKey = let
     unsafeReadKey = fdRead stdInput 1 >>= handleError
-    handleError (char:[], nread)
+    handleError ([char], nread)
         | (nread == -1) = repeatOrDie
         | otherwise = return char
     repeatOrDie
         | (unsafePerformIO getErrno == eAGAIN) = editorReadKey
         | otherwise = die "read"
-    in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
+    in unsafeReadKey `catch` (const editorReadKey :: IOException -> IO Char)
 
 editorPositionCursor :: (Int, Int) -> IO ()
 editorPositionCursor (x, y) =
-    let positionCmd = "\x1B[" ++ (show y) ++ ";" ++ (show x) ++ "H"
+    let positionCmd = "\x1B[" ++ show y ++ ";" ++ show x ++ "H"
     in void $ fdWrite stdOutput positionCmd
 
 {-- TODO: Refatorar o padraozinho abaixo de let in void $ fdWrite --}
@@ -99,7 +99,7 @@ getCursorPosition = let
             'R' -> return acc
             _   -> readUntilR (acc ++ [char])
     parsePosition ('\x1b': '[': xs) = do
-        let (rows, (_:cols)) = break (== ';') xs
+        let (rows, _: cols) = break (== ';') xs
         fdWrite stdOutput "\r"
         return (read rows :: Int, read cols :: Int)
     parsePosition _ = die "getCursorPosition"
@@ -130,7 +130,7 @@ editorRow windowRows windowCols n
     tilde = '~': clearLineCommand
     welcomeLine = welcomeMessage ++ clearLineCommand
     padding
-        | (paddingSize == 0) = ""
+        | paddingSize == 0 = ""
         | otherwise = '~': spaces
     paddingSize = min windowCols (
         (windowCols - length welcomeMessage) `div` 2)
@@ -152,7 +152,7 @@ editorRefreshScreen EditorConfig
 {-- input --}
 
 controlKeyMask :: Char -> Char
-controlKeyMask = chr . ((.&.) 0x1F) . ord
+controlKeyMask = chr . (.&.) 0x1F . ord
 
 editorMoveCursor :: Char -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig { cursor = (x, y) } =
@@ -164,9 +164,9 @@ editorMoveCursor move config@EditorConfig { cursor = (x, y) } =
 
 editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
 editorProcessKeypress config char
-    | (char == controlKeyMask 'q') = 
+    | char == controlKeyMask 'q' = 
         editorClearScreen >> exitSuccess >> return config
-    | (char `elem` "wasd") = return newEditorConfig
+    | char `elem` "wasd" = return newEditorConfig
     | otherwise = return config
   where
     newEditorConfig :: EditorConfig
@@ -183,10 +183,11 @@ main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    (safeLoop windowSize) `finally` disableRawMode originalAttributes
+    safeLoop windowSize `finally` disableRawMode originalAttributes
   where
-    safeLoop ws = (loop $ initEditorConfig ws) `catch` (
+    safeLoop ws = loop (initEditorConfig ws) `catch` (
         const $ safeLoop ws :: IOException -> IO ())
-    loop editorConfig = editorRefreshScreen editorConfig
-            >> editorReadKey >>= editorProcessKeypress editorConfig
-            >>= loop
+    loop editorConfig =
+        editorRefreshScreen editorConfig
+        >> editorReadKey >>= editorProcessKeypress editorConfig
+        >>= loop
