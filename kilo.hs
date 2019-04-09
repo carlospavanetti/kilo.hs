@@ -150,12 +150,18 @@ controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: Char -> EditorConfig -> EditorConfig
-editorMoveCursor move config@(EditorConfig { cursor = (x, y) }) =
+editorMoveCursor move config@EditorConfig
+    { cursor = (x, y)
+    , windowSize = (rows, cols) } =
     case move of
-        'a' -> config { cursor = (x - 1, y) }
-        'd' -> config { cursor = (x + 1, y) }
-        'w' -> config { cursor = (x, y - 1) }
-        's' -> config { cursor = (x, y + 1) }
+        'a' -> config { cursor = boundToScreenSize (x - 1, y) }
+        'd' -> config { cursor = boundToScreenSize (x + 1, y) }
+        'w' -> config { cursor = boundToScreenSize (x, y - 1) }
+        's' -> config { cursor = boundToScreenSize (x, y + 1) }
+        _   -> config
+  where
+    boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 rows y)
+    boundTo lower higher = max lower . min higher
 
 editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
 editorProcessKeypress config char
