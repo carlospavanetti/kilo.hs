@@ -30,10 +30,11 @@ data EditorConfig = EditorConfig
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
-enableRawMode = getTerminalAttributes stdInput
+enableRawMode =
+    getTerminalAttributes stdInput
     >>= \originalAttributes ->
-        setStdIOAttributes (withoutCanonicalMode originalAttributes)
-        >> return originalAttributes
+    setStdIOAttributes (withoutCanonicalMode originalAttributes)
+    >> return originalAttributes
 
 disableRawMode :: TerminalAttributes -> IO ()
 disableRawMode = setStdIOAttributes
@@ -64,7 +65,8 @@ editorReadKey = let
     repeatOrDie
         | (unsafePerformIO getErrno == eAGAIN) = editorReadKey
         | otherwise = die "read"
-    in unsafeReadKey `catch` (const editorReadKey :: IOException -> IO Char)
+    in unsafeReadKey
+        `catch` (const editorReadKey :: IOException -> IO Char)
 
 editorPositionCursor :: (Int, Int) -> IO ()
 editorPositionCursor (x, y) =
@@ -185,8 +187,8 @@ main = do
     windowSize <- getWindowSize
     safeLoop windowSize `finally` disableRawMode originalAttributes
   where
-    safeLoop ws = loop (initEditorConfig ws) `catch` (
-        const $ safeLoop ws :: IOException -> IO ())
+    safeLoop ws = loop (initEditorConfig ws)
+        `catch` (const $ safeLoop ws :: IOException -> IO ())
     loop editorConfig =
         editorRefreshScreen editorConfig
         >> editorReadKey >>= editorProcessKeypress editorConfig
