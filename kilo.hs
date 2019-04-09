@@ -15,9 +15,10 @@ import System.Posix.Terminal
 
 {-- defines --}
 
-kiloVersion :: String
+kiloVersion :: AppendBuffer
 kiloVersion = "0.0.1"
 
+welcomeMessage :: AppendBuffer
 welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
 
 {-- data --}
@@ -47,11 +48,11 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
     setTimeout = (flip withMinInput 0) . (flip withTime 1)
     disableModes = compose $ (flip withoutMode) <$> modesToDisable
     compose = foldl (.) id
-    modesToDisable = [
-            EnableEcho, ProcessInput, KeyboardInterrupts,
-            StartStopOutput, ExtendedFunctions, MapCRtoLF,
-            ProcessOutput, InterruptOnBreak, CheckParity,
-            StripHighBit
+    modesToDisable =
+        [   EnableEcho, ProcessInput, KeyboardInterrupts
+        ,   StartStopOutput, ExtendedFunctions, MapCRtoLF
+        ,   ProcessOutput, InterruptOnBreak, CheckParity
+        ,   StripHighBit
         ]
 
 editorReadKey :: IO Char
@@ -70,6 +71,7 @@ editorPositionCursor (x, y) =
     let positionCmd = "\x1B[" ++ (show y) ++ ";" ++ (show x) ++ "H"
     in void $ fdWrite stdOutput positionCmd
 
+{-- TODO: Refatorar o padraozinho abaixo de let in void $ fdWrite --}
 editorRepositionCursor :: IO ()
 editorRepositionCursor = let repositionCmd = "\x1B[H"
     in void $ fdWrite stdOutput repositionCmd
@@ -87,6 +89,7 @@ editorClearScreen = let clearCmd = "\x1B[2J"
     in fdWrite stdOutput clearCmd
         >> editorRepositionCursor
 
+{-- TODO: Tem que refatorar isso aqui --}
 getCursorPosition :: IO (Int, Int)
 getCursorPosition = let
     cursorPositionReportCmd = "\x1B[6n"
@@ -111,6 +114,8 @@ getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
 
 type AppendBuffer = String
 
+-- TODO: Trocar os (++) por um (`mappend`) :: Monoid a => a -> a -> a
+
 {-- output --}
 
 clearLineCommand :: AppendBuffer
@@ -121,15 +126,15 @@ editorRow windowRows windowCols n
     | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
     | n == windowRows = tilde
     | otherwise = tilde ++ "\r\n"
-    where
-        tilde = '~': clearLineCommand
-        welcomeLine = welcomeMessage ++ clearLineCommand
-        padding
-            | (paddingSize == 0) = ""
-            | otherwise = '~': spaces
-        paddingSize = min windowCols (
-            (windowCols - length welcomeMessage) `div` 2)
-        spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
+  where
+    tilde = '~': clearLineCommand
+    welcomeLine = welcomeMessage ++ clearLineCommand
+    padding
+        | (paddingSize == 0) = ""
+        | otherwise = '~': spaces
+    paddingSize = min windowCols (
+        (windowCols - length welcomeMessage) `div` 2)
+    spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
 editorDrawRows :: Int -> Int -> AppendBuffer
 editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
@@ -150,7 +155,7 @@ controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: Char -> EditorConfig -> EditorConfig
-editorMoveCursor move config@(EditorConfig { cursor = (x, y) }) =
+editorMoveCursor move config@EditorConfig { cursor = (x, y) } =
     case move of
         'a' -> config { cursor = (x - 1, y) }
         'd' -> config { cursor = (x + 1, y) }
@@ -163,9 +168,9 @@ editorProcessKeypress config char
         editorClearScreen >> exitSuccess >> return config
     | (char `elem` "wasd") = return newEditorConfig
     | otherwise = return config
-    where
-        newEditorConfig :: EditorConfig
-        newEditorConfig = editorMoveCursor char config
+  where
+    newEditorConfig :: EditorConfig
+    newEditorConfig = editorMoveCursor char config
 
 {-- init --}
 
@@ -179,7 +184,7 @@ main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
     (safeLoop windowSize) `finally` disableRawMode originalAttributes
-    where
+  where
     safeLoop ws = (loop $ initEditorConfig ws) `catch` (
         const $ safeLoop ws :: IOException -> IO ())
     loop editorConfig = editorRefreshScreen editorConfig
