@@ -94,18 +94,24 @@ editorClearScreen :: IO ()
 editorClearScreen = terminalCommand "2J" >> editorRepositionCursor
 
 getCursorPosition :: IO (Int, Int)
-getCursorPosition = let
-    readUntilR acc = do
-        char <- editorReadKey
-        case char of
+getCursorPosition =
+    terminalCommand "6n"
+    >> readCursorReport >>= parseReport
+  where
+    readCursorReport :: IO (Maybe AppendBuffer)
+    readCursorReport = unescape <$> getUntilR ""
+    getUntilR :: AppendBuffer -> IO AppendBuffer
+    getUntilR acc =
+        editorReadKey
+        >>= \char -> case char of
             'R' -> return acc
-            _   -> readUntilR (acc ++ [char])
-    parsePosition ('\x1b': '[': xs) = do
-        let (rows, _: cols) = break (== ';') xs
+            _   -> getUntilR (acc ++ [char])
+    parseReport :: Maybe AppendBuffer -> IO (Int, Int)
+    parseReport Nothing = die "getCursorPosition"
+    parseReport (Just report) = do
+        let (rows, _: cols) = break (== ';') report
         fdWrite stdOutput "\r"
-        return (read rows :: Int, read cols :: Int)
-    parsePosition _ = die "getCursorPosition"
-    in terminalCommand "6n" >> readUntilR "" >>= parsePosition
+        return (read rows, read cols)
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = moveToLimit >> getCursorPosition
