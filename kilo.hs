@@ -64,33 +64,37 @@ editorReadKey = let
     repeatOrDie
         | (unsafePerformIO getErrno == eAGAIN) = editorReadKey
         | otherwise = die "read"
-    in unsafeReadKey `catch` (const $ editorReadKey :: IOException -> IO Char)
+    in unsafeReadKey `catch` (const editorReadKey :: IOException -> IO Char)
+
+escape :: AppendBuffer -> AppendBuffer
+escape cmd = '\x1B': '[': cmd
+
+unescape :: AppendBuffer -> Maybe AppendBuffer
+unescape ('\x1B': '[': cmd) = Just cmd
+unescape _ = Nothing
+
+terminalCommand :: AppendBuffer -> IO ()
+terminalCommand cmd = void $ fdWrite stdOutput (escape cmd)
 
 editorPositionCursor :: (Int, Int) -> IO ()
 editorPositionCursor (x, y) =
-    let positionCmd = "\x1B[" ++ (show y) ++ ";" ++ (show x) ++ "H"
-    in void $ fdWrite stdOutput positionCmd
+    let positionCursor = show y ++ ";" ++ show x ++ "H"
+    in terminalCommand positionCursor
 
 editorRepositionCursor :: IO ()
-editorRepositionCursor = let repositionCmd = "\x1B[H"
-    in void $ fdWrite stdOutput repositionCmd
+editorRepositionCursor = terminalCommand "H"
 
 editorHideCursor :: IO ()
-editorHideCursor = let hideCursorCmd = "\x1B[?25l"
-    in void $ fdWrite stdOutput hideCursorCmd
+editorHideCursor = terminalCommand "?25l"
 
 editorShowCursor :: IO ()
-editorShowCursor = let showCursorCmd = "\x1B[?25h"
-    in void $ fdWrite stdOutput showCursorCmd
+editorShowCursor = terminalCommand "?25h"
 
 editorClearScreen :: IO ()
-editorClearScreen = let clearCmd = "\x1B[2J"
-    in fdWrite stdOutput clearCmd
-        >> editorRepositionCursor
+editorClearScreen = terminalCommand "2J" >> editorRepositionCursor
 
 getCursorPosition :: IO (Int, Int)
 getCursorPosition = let
-    cursorPositionReportCmd = "\x1B[6n"
     readUntilR acc = do
         char <- editorReadKey
         case char of
@@ -101,12 +105,13 @@ getCursorPosition = let
         fdWrite stdOutput "\r"
         return (read rows :: Int, read cols :: Int)
     parsePosition _ = die "getCursorPosition"
-    in fdWrite stdOutput cursorPositionReportCmd
-        >> readUntilR "" >>= parsePosition
+    in terminalCommand "6n" >> readUntilR "" >>= parsePosition
 
 getWindowSize :: IO (Int, Int)
-getWindowSize = let moveToBottomRightCmd = "\x1b[999C\x1b[999B"
-    in fdWrite stdOutput moveToBottomRightCmd >> getCursorPosition
+getWindowSize =
+    moveToLimit >> getCursorPosition
+  where
+    moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
 
 {-- append buffer --}
 
