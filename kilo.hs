@@ -43,7 +43,7 @@ setStdIOAttributes = flip (setTerminalAttributes stdInput) WhenFlushed
 
 withoutCanonicalMode :: TerminalAttributes -> TerminalAttributes
 withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
-    where
+  where
     set8BitsPerByte = flip withBits 8
     setTimeout = flip withMinInput 0 . flip withTime 1
     disableModes = compose $ flip withoutMode <$> modesToDisable
@@ -137,7 +137,7 @@ editorRow windowRows windowCols n
     spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
 editorDrawRows :: Int -> Int -> AppendBuffer
-editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
+editorDrawRows rows cols = concatMap (editorRow rows cols) [1.. rows]
 
 editorRefreshScreen :: EditorConfig -> IO ()
 editorRefreshScreen EditorConfig
