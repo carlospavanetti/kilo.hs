@@ -29,7 +29,8 @@ data EditorConfig = EditorConfig
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
-enableRawMode = getTerminalAttributes stdInput
+enableRawMode =
+    getTerminalAttributes stdInput
     >>= \originalAttributes ->
         setStdIOAttributes (withoutCanonicalMode originalAttributes)
         >> return originalAttributes
@@ -42,16 +43,16 @@ setStdIOAttributes = flip (setTerminalAttributes stdInput) WhenFlushed
 
 withoutCanonicalMode :: TerminalAttributes -> TerminalAttributes
 withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
-    where
+  where
     set8BitsPerByte = flip withBits 8
     setTimeout = (flip withMinInput 0) . (flip withTime 1)
     disableModes = compose $ (flip withoutMode) <$> modesToDisable
     compose = foldl (.) id
-    modesToDisable = [
-            EnableEcho, ProcessInput, KeyboardInterrupts,
-            StartStopOutput, ExtendedFunctions, MapCRtoLF,
-            ProcessOutput, InterruptOnBreak, CheckParity,
-            StripHighBit
+    modesToDisable =
+        [   EnableEcho, ProcessInput, KeyboardInterrupts
+        ,   StartStopOutput, ExtendedFunctions, MapCRtoLF
+        ,   ProcessOutput, InterruptOnBreak, CheckParity
+        ,   StripHighBit
         ]
 
 editorReadKey :: IO Char
@@ -121,15 +122,15 @@ editorRow windowRows windowCols n
     | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
     | n == windowRows = tilde
     | otherwise = tilde ++ "\r\n"
-    where
-        tilde = '~': clearLineCommand
-        welcomeLine = welcomeMessage ++ clearLineCommand
-        padding
-            | (paddingSize == 0) = ""
-            | otherwise = '~': spaces
-        paddingSize = min windowCols (
-            (windowCols - length welcomeMessage) `div` 2)
-        spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
+  where
+    tilde = '~': clearLineCommand
+    welcomeLine = welcomeMessage ++ clearLineCommand
+    padding
+        | (paddingSize == 0) = ""
+        | otherwise = '~': spaces
+    paddingSize = min windowCols $
+        (windowCols - length welcomeMessage) `div` 2
+    spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
 editorDrawRows :: Int -> Int -> AppendBuffer
 editorDrawRows rows cols = foldr1 (++) (map (editorRow rows cols) [1.. rows])
@@ -138,11 +139,11 @@ editorRefreshScreen :: EditorConfig -> IO ()
 editorRefreshScreen EditorConfig
     { cursor = cursor
     , windowSize = (rows, cols) } =
-        editorHideCursor
-        >> editorRepositionCursor
-        >> fdWrite stdOutput (editorDrawRows rows cols)
-        >> editorPositionCursor cursor
-        >> editorShowCursor
+    editorHideCursor
+    >> editorRepositionCursor
+    >> fdWrite stdOutput (editorDrawRows rows cols)
+    >> editorPositionCursor cursor
+    >> editorShowCursor
 
 {-- input --}
 
@@ -165,13 +166,13 @@ editorMoveCursor move config@EditorConfig
 
 editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
 editorProcessKeypress config char
-    | (char == controlKeyMask 'q') = 
+    | (char == controlKeyMask 'q') =
         editorClearScreen >> exitSuccess >> return config
     | (char `elem` "wasd") = return newEditorConfig
     | otherwise = return config
-    where
-        newEditorConfig :: EditorConfig
-        newEditorConfig = editorMoveCursor char config
+  where
+    newEditorConfig :: EditorConfig
+    newEditorConfig = editorMoveCursor char config
 
 {-- init --}
 
@@ -185,9 +186,10 @@ main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
     (safeLoop windowSize) `finally` disableRawMode originalAttributes
-    where
-    safeLoop ws = (loop $ initEditorConfig ws) `catch` (
-        const $ safeLoop ws :: IOException -> IO ())
-    loop editorConfig = editorRefreshScreen editorConfig
-            >> editorReadKey >>= editorProcessKeypress editorConfig
-            >>= loop
+  where
+    safeLoop ws = loop (initEditorConfig ws)
+        `catch` (const $ safeLoop ws :: IOException -> IO ())
+    loop editorConfig =
+        editorRefreshScreen editorConfig
+        >> editorReadKey >>= editorProcessKeypress editorConfig
+        >>= loop
