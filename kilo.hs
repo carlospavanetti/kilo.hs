@@ -5,7 +5,7 @@ module Main where
 import Data.Bits ((.&.))
 import Data.Char (chr, ord)
 import Control.Exception (finally, catch, IOException)
-import Control.Monad (void)
+import Control.Monad (void, liftM2)
 
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
@@ -32,6 +32,10 @@ data EditorConfig = EditorConfig
 enableRawMode :: IO TerminalAttributes
 enableRawMode =
     getTerminalAttributes stdInput
+    -- >>= liftM2 (>>)
+    --     (setStdIOAttributes . withoutCanonicalMode)
+    --     return
+    {-- TODO: A versão com liftM2 não tem semântica alguma --}
     >>= \originalAttributes ->
     setStdIOAttributes (withoutCanonicalMode originalAttributes)
     >> return originalAttributes
@@ -48,7 +52,7 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
     set8BitsPerByte = flip withBits 8
     setTimeout = flip withMinInput 0 . flip withTime 1
     disableModes = compose $ flip withoutMode <$> modesToDisable
-    compose = foldl (.) id
+    compose = foldr (.) id
     modesToDisable =
         [   EnableEcho, ProcessInput, KeyboardInterrupts
         ,   StartStopOutput, ExtendedFunctions, MapCRtoLF
@@ -128,7 +132,7 @@ getCursorPosition =
     readKeysUntilR acc =
         editorReadKey
         >>= \char -> case char of
-            'R' -> return acc 
+            'R' -> return acc
             _   -> readKeysUntilR (acc ++ [char])
     parsePosition :: Maybe AppendBuffer -> IO (Int, Int)
     parsePosition (Just report) = do
@@ -195,7 +199,7 @@ editorMoveCursor move config@EditorConfig { cursor = (x, y) } =
 
 editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
 editorProcessKeypress config char
-    | char == controlKeyMask 'q' = 
+    | char == controlKeyMask 'q' =
         editorClearScreen >> exitSuccess >> return config
     | char `elem` "wasd" = return newEditorConfig
     | otherwise = return config
