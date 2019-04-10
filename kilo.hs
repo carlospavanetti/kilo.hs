@@ -57,20 +57,23 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
 
 editorReadKey :: IO Char
 editorReadKey = let
-    unsafeReadKey = fdRead stdInput 1 >>= handleError
+    unsafeReadKey = fdRead stdInput 1 >>= handleError >>= handleEscapeSequence
     handleError ([char], nread)
         | (nread == -1) = repeatOrDie
         | otherwise = return char
     repeatOrDie
         | (unsafePerformIO getErrno == eAGAIN) = editorReadKey
         | otherwise = die "read"
+    handleEscapeSequence key
+        | (key == '\ESC') = return key
+        | otherwise = return key
     in unsafeReadKey `catch` (const editorReadKey :: IOException -> IO Char)
 
 escape :: AppendBuffer -> AppendBuffer
-escape cmd = '\x1B': '[': cmd
+escape cmd = '\ESC': '[': cmd
 
 unescape :: AppendBuffer -> Maybe AppendBuffer
-unescape ('\x1B': '[': cmd) = Just cmd
+unescape ('\ESC': '[': cmd) = Just cmd
 unescape _ = Nothing
 
 terminalCommand :: AppendBuffer -> IO ()
@@ -124,7 +127,7 @@ type AppendBuffer = String
 {-- output --}
 
 clearLineCommand :: AppendBuffer
-clearLineCommand = "\x1B[K"
+clearLineCommand = escape "K"
 
 editorRow :: Int -> Int -> Int -> AppendBuffer
 editorRow windowRows windowCols n
