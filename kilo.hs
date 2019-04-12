@@ -55,19 +55,44 @@ withoutCanonicalMode = disableModes . set8BitsPerByte . setTimeout
         ,   StripHighBit
         ]
 
-editorReadKey :: IO Char
-editorReadKey = let
-    unsafeReadKey = fdRead stdInput 1 >>= handleError >>= handleEscapeSequence
+editorReadRawChar :: IO Char
+editorReadRawChar = let
+    unsafeReadKey = fdRead stdInput 1 >>= handleError
     handleError ([char], nread)
         | (nread == -1) = repeatOrDie
         | otherwise = return char
     repeatOrDie
-        | (unsafePerformIO getErrno == eAGAIN) = editorReadKey
+        | (unsafePerformIO getErrno == eAGAIN) = editorReadRawChar
         | otherwise = die "read"
-    handleEscapeSequence key
-        | (key == '\ESC') = return key
-        | otherwise = return key
-    in unsafeReadKey `catch` (const editorReadKey :: IOException -> IO Char)
+    in unsafeReadKey `catch` (const editorReadRawChar :: IOException -> IO Char)
+
+editorReadKey :: IO Char
+editorReadKey = editorReadRawChar >>= handleEscapeSequence
+
+handleEscapeSequence :: Char -> IO Char
+handleEscapeSequence key
+    | (key == '\ESC') = readBracket
+    | otherwise = return key
+  where
+    readBracket :: IO Char
+    readBracket = do
+        ([seq0], nread) <- fdRead stdInput 1
+        case nread of
+            1 -> case seq0 of
+                '[' -> readDeterminer
+                _   -> return '\ESC'
+            _ -> return '\ESC'
+    readDeterminer :: IO Char
+    readDeterminer = do
+        ([seq1], nread) <- fdRead stdInput 1
+        case nread of
+            1 -> case seq1 of
+                'A' -> return 'w'
+                'B' -> return 's'
+                'C' -> return 'd'
+                'D' -> return 'a'
+                _   -> return '\ESC'
+            _ -> return '\ESC'
 
 escape :: AppendBuffer -> AppendBuffer
 escape cmd = '\ESC': '[': cmd
@@ -105,7 +130,7 @@ getCursorPosition =
     readCursorReport = unescape <$> getUntilR ""
     getUntilR :: AppendBuffer -> IO AppendBuffer
     getUntilR acc =
-        editorReadKey
+        editorReadRawChar
         >>= \char -> case char of
             'R' -> return acc
             _   -> getUntilR (acc ++ [char])
