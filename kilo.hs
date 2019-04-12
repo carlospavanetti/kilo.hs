@@ -26,6 +26,10 @@ data EditorConfig = EditorConfig
     { cursor :: (Int, Int)
     , windowSize :: (Int, Int) } deriving Show
 
+data EditorKey = Key Char
+               | ArrowLeft | ArrowRight
+               | ArrowUp | ArrowDown deriving Eq
+
 {-- terminal --}
 
 enableRawMode :: IO TerminalAttributes
@@ -68,35 +72,35 @@ editorReadRawChar = let
     retry = const editorReadRawChar
     in unsafeReadKey `catch` retry
 
-editorReadKey :: IO Char
+editorReadKey :: IO EditorKey
 editorReadKey = editorReadRawChar >>= handleEscapeSequence
 
-handleEscapeSequence :: Char -> IO Char
+handleEscapeSequence :: Char -> IO EditorKey
 handleEscapeSequence key
     | (key == '\ESC') = readBracket
-    | otherwise = return key
+    | otherwise = return (Key key)
   where
-    readNextInSeq :: (Char -> IO Char) -> IO Char
+    readNextInSeq :: (Char -> IO EditorKey) -> IO EditorKey
     readNextInSeq select = do
         ([seq], nread) <- fdRead stdInput 1
         case nread of
             1 -> select seq
-            _ -> return '\ESC'
-    readBracket :: IO Char
+            _ -> return (Key '\ESC')
+    readBracket :: IO EditorKey
     readBracket = readNextInSeq
         (\seq ->
         case seq of
             '[' -> readDeterminer
-            _   -> return '\ESC')
-    readDeterminer :: IO Char
+            _   -> return (Key '\ESC'))
+    readDeterminer :: IO EditorKey
     readDeterminer = readNextInSeq
         (\seq ->
         case seq of
-            'A' -> return 'w'
-            'B' -> return 's'
-            'C' -> return 'd'
-            'D' -> return 'a'
-            _   -> return '\ESC')
+            'A' -> return ArrowUp
+            'B' -> return ArrowDown
+            'C' -> return ArrowRight
+            'D' -> return ArrowLeft
+            _   -> return (Key '\ESC'))
 
 
 escape :: AppendBuffer -> AppendBuffer
@@ -192,29 +196,29 @@ editorRefreshScreen EditorConfig
 controlKeyMask :: Char -> Char
 controlKeyMask = chr . ((.&.) 0x1F) . ord
 
-editorMoveCursor :: Char -> EditorConfig -> EditorConfig
+editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
     { cursor = (x, y)
     , windowSize = (rows, cols) } =
     case move of
-        'a' -> config { cursor = boundToScreenSize (x - 1, y) }
-        'd' -> config { cursor = boundToScreenSize (x + 1, y) }
-        'w' -> config { cursor = boundToScreenSize (x, y - 1) }
-        's' -> config { cursor = boundToScreenSize (x, y + 1) }
+        ArrowLeft  -> config { cursor = boundToScreenSize (x - 1, y) }
+        ArrowRight -> config { cursor = boundToScreenSize (x + 1, y) }
+        ArrowUp    -> config { cursor = boundToScreenSize (x, y - 1) }
+        ArrowDown  -> config { cursor = boundToScreenSize (x, y + 1) }
         _   -> config
   where
     boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 rows y)
     boundTo lower higher = max lower . min higher
 
-editorProcessKeypress :: EditorConfig -> Char -> IO EditorConfig
-editorProcessKeypress config char
-    | (char == controlKeyMask 'q') =
+editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
+editorProcessKeypress config key
+    | (key == (Key $ controlKeyMask 'q')) =
         editorClearScreen >> exitSuccess >> return config
-    | (char `elem` "wasd") = return newEditorConfig
-    | otherwise = return config
+    -- | (key `elem` "wasd") = return newEditorConfig
+    | otherwise = return newEditorConfig
   where
     newEditorConfig :: EditorConfig
-    newEditorConfig = editorMoveCursor char config
+    newEditorConfig = editorMoveCursor key config
 
 {-- init --}
 
