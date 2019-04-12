@@ -64,7 +64,9 @@ editorReadRawChar = let
     repeatOrDie
         | (unsafePerformIO getErrno == eAGAIN) = editorReadRawChar
         | otherwise = die "read"
-    in unsafeReadKey `catch` (const editorReadRawChar :: IOException -> IO Char)
+    retry :: IOException -> IO Char
+    retry = const editorReadRawChar
+    in unsafeReadKey `catch` retry
 
 editorReadKey :: IO Char
 editorReadKey = editorReadRawChar >>= handleEscapeSequence
@@ -222,10 +224,12 @@ main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    (safeLoop windowSize) `finally` disableRawMode originalAttributes
+    safeLoop windowSize `finally` disableRawMode originalAttributes
   where
     safeLoop ws = loop (initEditorConfig ws)
-        `catch` (const $ safeLoop ws :: IOException -> IO ())
+        `catch` retry ws
+    retry :: (Int, Int) -> IOException -> IO ()
+    retry = const . safeLoop
     loop editorConfig =
         editorRefreshScreen editorConfig
         >> editorReadKey >>= editorProcessKeypress editorConfig
