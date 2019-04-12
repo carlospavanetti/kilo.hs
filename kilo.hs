@@ -32,6 +32,7 @@ data EditorKey
     | ArrowLeft | ArrowRight
     | ArrowUp | ArrowDown
     | PageUp | PageDown
+    | HomeKey | EndKey
     deriving Eq
 
 {-- terminal --}
@@ -104,13 +105,27 @@ handleEscapeSequence key
             'B' -> return ArrowDown
             'C' -> return ArrowRight
             'D' -> return ArrowLeft
+            'H' -> return HomeKey
+            'F' -> return EndKey
+            'O' -> readAfterO
             _   -> return (Key '\ESC'))
     readTilde :: Char -> IO EditorKey
     readTilde number = readNextInSeq
         (\seq -> if seq /= '~' then return (Key '\ESC')
         else case number of
+            '1' -> return HomeKey
+            '4' -> return EndKey
             '5' -> return PageUp
             '6' -> return PageDown
+            '7' -> return HomeKey
+            '8' -> return EndKey
+            _   -> return (Key '\ESC'))
+    readAfterO :: IO EditorKey
+    readAfterO = readNextInSeq
+        (\seq ->
+        case seq of
+            'H' -> return HomeKey
+            'F' -> return EndKey
             _   -> return (Key '\ESC'))
 
 escape :: AppendBuffer -> AppendBuffer
