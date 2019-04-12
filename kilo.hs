@@ -3,7 +3,7 @@ module Main where
 {-- imports --}
 
 import Data.Bits ((.&.))
-import Data.Char (chr, ord)
+import Data.Char (chr, ord, isNumber)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
@@ -23,12 +23,16 @@ welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
 {-- data --}
 
 data EditorConfig = EditorConfig
-    { cursor :: (Int, Int)
-    , windowSize :: (Int, Int) } deriving Show
+    { cursor     :: (Int, Int)
+    , windowSize :: (Int, Int)
+    } deriving Show
 
-data EditorKey = Key Char
-               | ArrowLeft | ArrowRight
-               | ArrowUp | ArrowDown deriving Eq
+data EditorKey
+    = Key Char
+    | ArrowLeft | ArrowRight
+    | ArrowUp | ArrowDown
+    | PageUp | PageDown
+    deriving Eq
 
 {-- terminal --}
 
@@ -94,14 +98,20 @@ handleEscapeSequence key
             _   -> return (Key '\ESC'))
     readDeterminer :: IO EditorKey
     readDeterminer = readNextInSeq
-        (\seq ->
-        case seq of
+        (\seq -> if isNumber seq then readTilde seq
+        else case seq of
             'A' -> return ArrowUp
             'B' -> return ArrowDown
             'C' -> return ArrowRight
             'D' -> return ArrowLeft
             _   -> return (Key '\ESC'))
-
+    readTilde :: Char -> IO EditorKey
+    readTilde number = readNextInSeq
+        (\seq -> if seq /= '~' then return (Key '\ESC')
+        else case number of
+            '5' -> return PageUp
+            '6' -> return PageDown
+            _   -> return (Key '\ESC'))
 
 escape :: AppendBuffer -> AppendBuffer
 escape cmd = '\ESC': '[': cmd
