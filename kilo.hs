@@ -76,25 +76,28 @@ handleEscapeSequence key
     | (key == '\ESC') = readBracket
     | otherwise = return key
   where
+    readNextInSeq :: (Char -> IO Char) -> IO Char
+    readNextInSeq select = do
+        ([seq], nread) <- fdRead stdInput 1
+        case nread of
+            1 -> select seq
+            _ -> return '\ESC'
     readBracket :: IO Char
-    readBracket = do
-        ([seq0], nread) <- fdRead stdInput 1
-        case nread of
-            1 -> case seq0 of
-                '[' -> readDeterminer
-                _   -> return '\ESC'
-            _ -> return '\ESC'
+    readBracket = readNextInSeq
+        (\seq ->
+        case seq of
+            '[' -> readDeterminer
+            _   -> return '\ESC')
     readDeterminer :: IO Char
-    readDeterminer = do
-        ([seq1], nread) <- fdRead stdInput 1
-        case nread of
-            1 -> case seq1 of
-                'A' -> return 'w'
-                'B' -> return 's'
-                'C' -> return 'd'
-                'D' -> return 'a'
-                _   -> return '\ESC'
-            _ -> return '\ESC'
+    readDeterminer = readNextInSeq
+        (\seq ->
+        case seq of
+            'A' -> return 'w'
+            'B' -> return 's'
+            'C' -> return 'd'
+            'D' -> return 'a'
+            _   -> return '\ESC')
+
 
 escape :: AppendBuffer -> AppendBuffer
 escape cmd = '\ESC': '[': cmd
