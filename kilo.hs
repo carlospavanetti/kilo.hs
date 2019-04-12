@@ -232,6 +232,8 @@ editorMoveCursor move config@EditorConfig
         ArrowDown  -> config { cursor = boundToScreenSize (x, y + 1) }
         PageUp     -> config { cursor = (x,    1) }
         PageDown   -> config { cursor = (x, rows) }
+        HomeKey    -> config { cursor = (1,    y) }
+        EndKey     -> config { cursor = (cols, y) }
         _   -> config
   where
     boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 rows y)
