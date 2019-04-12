@@ -32,7 +32,7 @@ data EditorKey
     | ArrowLeft | ArrowRight
     | ArrowUp | ArrowDown
     | PageUp | PageDown
-    | HomeKey | EndKey
+    | HomeKey | EndKey | DelKey
     deriving Eq
 
 {-- terminal --}
@@ -114,6 +114,7 @@ handleEscapeSequence key
         (\seq -> if seq /= '~' then return (Key '\ESC')
         else case number of
             '1' -> return HomeKey
+            '3' -> return DelKey
             '4' -> return EndKey
             '5' -> return PageUp
             '6' -> return PageDown
