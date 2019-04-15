@@ -235,8 +235,8 @@ editorRefreshScreen EditorConfig
 
 {-- input --}
 
-controlKeyMask :: Char -> Char
-controlKeyMask = chr . ((.&.) 0x1F) . ord
+controlKey :: Char -> EditorKey
+controlKey = Key . chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
@@ -258,9 +258,8 @@ editorMoveCursor move config@EditorConfig
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
 editorProcessKeypress config key
-    | (key == (Key $ controlKeyMask 'q')) =
+    | (key == controlKey 'q') =
         editorClearScreen >> exitSuccess >> return config
-    -- | (key `elem` "wasd") = return newEditorConfig
     | otherwise = return newEditorConfig
   where
     newEditorConfig :: EditorConfig
