@@ -80,54 +80,70 @@ editorReadRawChar = let
 editorReadKey :: IO EditorKey
 editorReadKey = editorReadRawChar >>= handleEscapeSequence
 
+data EscapeSequence
+    = Escape | Introducer
+    | TildeCode Char | O_Code
+    | Final EditorKey
+
 handleEscapeSequence :: Char -> IO EditorKey
 handleEscapeSequence key
-    | (key == '\ESC') = readBracket
+    | (key == '\ESC') = processResult <$> (readIntroducer >>= handleCode)
     | otherwise = return (Key key)
   where
-    readNextInSeq :: (Char -> IO EditorKey) -> IO EditorKey
-    readNextInSeq select = do
+    readRawByte :: (Char -> IO EscapeSequence) -> IO EscapeSequence
+    readRawByte select = do
         ([seq], nread) <- fdRead stdInput 1
         case nread of
             1 -> select seq
-            _ -> return (Key '\ESC')
-    readBracket :: IO EditorKey
-    readBracket = readNextInSeq
-        (\seq ->
+            _ -> return Escape
+    readIntroducer :: IO EscapeSequence
+    readIntroducer = readRawByte $
+        \seq -> if seq == '['
+            then return Introducer
+            else return Escape
+    handleCode :: EscapeSequence -> IO EscapeSequence
+    handleCode Escape = return Escape
+    handleCode Introducer = handle1st >>= handle2nd
+    handle1st ::  IO EscapeSequence
+    handle1st = readRawByte $
+        \seq -> if isNumber seq
+            then return (TildeCode seq)
+            else case seq of
+                'A' -> return $ Final ArrowUp
+                'B' -> return $ Final ArrowDown
+                'C' -> return $ Final ArrowRight
+                'D' -> return $ Final ArrowLeft
+                'H' -> return $ Final HomeKey
+                'F' -> return $ Final EndKey
+                'O' -> return O_Code
+                _   -> return Escape
+    handle2nd :: EscapeSequence -> IO EscapeSequence
+    handle2nd Escape = return Escape
+    handle2nd key@(Final _) = return key
+    handle2nd (TildeCode digit) = handleTildeCode digit
+    handle2nd O_Code = handleO_Code
+    handleTildeCode :: Char -> IO EscapeSequence
+    handleTildeCode digit = readRawByte $
+        \seq -> if seq /= '~'
+            then return Escape
+            else case digit of
+                '1' -> return $ Final HomeKey
+                '3' -> return $ Final DelKey
+                '4' -> return $ Final EndKey
+                '5' -> return $ Final PageUp
+                '6' -> return $ Final PageDown
+                '7' -> return $ Final HomeKey
+                '8' -> return $ Final EndKey
+                _   -> return Escape
+    handleO_Code :: IO EscapeSequence
+    handleO_Code = readRawByte $ \seq ->
         case seq of
-            '[' -> readDeterminer
-            _   -> return (Key '\ESC'))
-    readDeterminer :: IO EditorKey
-    readDeterminer = readNextInSeq
-        (\seq -> if isNumber seq then readTilde seq
-        else case seq of
-            'A' -> return ArrowUp
-            'B' -> return ArrowDown
-            'C' -> return ArrowRight
-            'D' -> return ArrowLeft
-            'H' -> return HomeKey
-            'F' -> return EndKey
-            'O' -> readAfterO
-            _   -> return (Key '\ESC'))
-    readTilde :: Char -> IO EditorKey
-    readTilde number = readNextInSeq
-        (\seq -> if seq /= '~' then return (Key '\ESC')
-        else case number of
-            '1' -> return HomeKey
-            '3' -> return DelKey
-            '4' -> return EndKey
-            '5' -> return PageUp
-            '6' -> return PageDown
-            '7' -> return HomeKey
-            '8' -> return EndKey
-            _   -> return (Key '\ESC'))
-    readAfterO :: IO EditorKey
-    readAfterO = readNextInSeq
-        (\seq ->
-        case seq of
-            'H' -> return HomeKey
-            'F' -> return EndKey
-            _   -> return (Key '\ESC'))
+            'H' -> return $ Final HomeKey
+            'F' -> return $ Final EndKey
+            _   -> return Escape
+    processResult :: EscapeSequence -> EditorKey
+    processResult Escape = Key '\ESC'
+    processResult (Final key) = key
 
 escape :: AppendBuffer -> AppendBuffer
 escape cmd = '\ESC': '[': cmd
@@ -219,8 +235,8 @@ editorRefreshScreen EditorConfig
 
 {-- input --}
 
-controlKeyMask :: Char -> Char
-controlKeyMask = chr . ((.&.) 0x1F) . ord
+controlKey :: Char -> EditorKey
+controlKey = Key . chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
@@ -242,9 +258,8 @@ editorMoveCursor move config@EditorConfig
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
 editorProcessKeypress config key
-    | (key == (Key $ controlKeyMask 'q')) =
+    | (key == controlKey 'q') =
         editorClearScreen >> exitSuccess >> return config
-    -- | (key `elem` "wasd") = return newEditorConfig
     | otherwise = return newEditorConfig
   where
     newEditorConfig :: EditorConfig
