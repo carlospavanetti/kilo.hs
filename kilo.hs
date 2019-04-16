@@ -7,6 +7,8 @@ import Data.Char (chr, ord, isNumber)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
+import qualified Data.Text as T
+
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (die, exitSuccess)
@@ -22,9 +24,13 @@ welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
 
 {-- data --}
 
+type Erow = T.Text
+
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
     , windowSize :: (Int, Int)
+    , numRows :: Int
+    , row :: Erow
     } deriving Show
 
 data EditorKey
@@ -270,7 +276,9 @@ editorProcessKeypress config key
 initEditorConfig :: (Int, Int) -> EditorConfig
 initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
-    , windowSize = windowSize }
+    , windowSize = windowSize
+    , numRows = 0
+    }
 
 main :: IO ()
 main = do
