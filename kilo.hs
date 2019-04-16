@@ -222,19 +222,20 @@ editorRow config@EditorConfig
     , numRows = numRows
     , row = row
     } n
-    | n <= numRows = T.unpack row ++ clearLineCommand ++ "\r\n"
-    | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
-    | n == windowRows = tilde
-    | otherwise = tilde ++ "\r\n"
+    | n <= numRows            = clearCRNL $ T.unpack row
+    | n == windowRows `div` 3 = clearCRNL $ padding ++ welcomeMessage
+    | n == windowRows         = clear tilde
+    | otherwise               = clearCRNL tilde
   where
-    tilde = '~': clearLineCommand
-    welcomeLine = welcomeMessage ++ clearLineCommand
+    tilde = "~"
+    clear row = row ++ clearLineCommand
+    clearCRNL row = clear row ++ "\r\n"
     padding
         | (paddingSize == 0) = ""
-        | otherwise = '~': spaces
+        | otherwise          = tilde ++ spaces
     paddingSize = min windowCols $
         (windowCols - length welcomeMessage) `div` 2
-    spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
+    spaces = foldr (:) "" (replicate (paddingSize - length tilde) ' ')
 
 editorDrawRows :: EditorConfig -> AppendBuffer
 editorDrawRows config = concatMap (editorRow config) [1.. rows]
