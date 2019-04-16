@@ -222,19 +222,19 @@ editorRow config@EditorConfig
     , numRows = numRows
     , row = row
     } n
-    | n <= numRows            = clearCRNL $ T.unpack row
-    | n == windowRows `div` 3 = clearCRNL $ padding ++ welcomeMessage
+    | n <= numRows            = clearCRNL $ truncate (T.unpack row)
+    | n == windowRows `div` 3 = clearCRNL $ padding ++ truncate welcomeMessage
     | n == windowRows         = clear tilde
     | otherwise               = clearCRNL tilde
   where
     tilde = "~"
     clear row = row ++ clearLineCommand
     clearCRNL row = clear row ++ "\r\n"
+    truncate = take windowCols
     padding
-        | (paddingSize == 0) = ""
+        | (paddingSize <= 0) = ""
         | otherwise          = tilde ++ spaces
-    paddingSize = min windowCols $
-        (windowCols - length welcomeMessage) `div` 2
+    paddingSize = (windowCols - length welcomeMessage) `div` 2
     spaces = foldr (:) "" (replicate (paddingSize - length tilde) ' ')
 
 editorDrawRows :: EditorConfig -> AppendBuffer
