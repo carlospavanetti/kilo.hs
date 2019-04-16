@@ -202,6 +202,11 @@ getWindowSize :: IO (Int, Int)
 getWindowSize = moveToLimit >> getCursorPosition
   where moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
 
+{-- afile i/o --}
+
+editorOpen :: EditorConfig -> EditorConfig
+editorOpen config = config { row = T.pack "Hello, world!", numRows = 1 }
+
 {-- append buffer --}
 
 type AppendBuffer = String
@@ -278,17 +283,19 @@ initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
     , windowSize = windowSize
     , numRows = 0
+    , row = T.pack ""
     }
 
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    safeLoop windowSize `finally` disableRawMode originalAttributes
+    let editorConfig = editorOpen $ initEditorConfig windowSize
+    safeLoop editorConfig `finally` disableRawMode originalAttributes
   where
-    safeLoop ws = loop (initEditorConfig ws)
-        `catch` retry ws
-    retry :: (Int, Int) -> IOException -> IO ()
+    safeLoop editorConfig = loop editorConfig
+        `catch` retry editorConfig
+    retry :: EditorConfig -> IOException -> IO ()
     retry = const . safeLoop
     loop editorConfig =
         editorRefreshScreen editorConfig
