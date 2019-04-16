@@ -216,8 +216,13 @@ type AppendBuffer = String
 clearLineCommand :: AppendBuffer
 clearLineCommand = escape "K"
 
-editorRow :: Int -> Int -> Int -> AppendBuffer
-editorRow windowRows windowCols n
+editorRow :: EditorConfig -> Int -> AppendBuffer
+editorRow config@EditorConfig
+    { windowSize = (windowRows, windowCols)
+    , numRows = numRows
+    , row = row
+    } n
+    | n <= numRows = T.unpack row ++ clearLineCommand ++ "\r\n"
     | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
     | n == windowRows = tilde
     | otherwise = tilde ++ "\r\n"
@@ -231,16 +236,17 @@ editorRow windowRows windowCols n
         (windowCols - length welcomeMessage) `div` 2
     spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
 
-editorDrawRows :: Int -> Int -> AppendBuffer
-editorDrawRows rows cols = concatMap (editorRow rows cols) [1.. rows]
+editorDrawRows :: EditorConfig -> AppendBuffer
+editorDrawRows config = concatMap (editorRow config) [1.. rows]
+  where (rows, _) = windowSize config
 
 editorRefreshScreen :: EditorConfig -> IO ()
-editorRefreshScreen EditorConfig
+editorRefreshScreen config@EditorConfig
     { cursor = cursor
     , windowSize = (rows, cols) } =
     editorHideCursor
     >> editorRepositionCursor
-    >> fdWrite stdOutput (editorDrawRows rows cols)
+    >> fdWrite stdOutput (editorDrawRows config)
     >> editorPositionCursor cursor
     >> editorShowCursor
 
