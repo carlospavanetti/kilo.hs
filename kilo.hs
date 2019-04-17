@@ -215,8 +215,9 @@ editorAppendRow config line = config { row = [T.pack line], numRows = 1 }
 editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
 editorOpen fileName config = do
     file <- openFile fileName ReadMode
-    line <- hGetLine file
-    return $ editorAppendRow config line
+    content <- hGetContents file
+    let rows = T.splitOn (T.pack "\n") (T.pack content)
+    return config { row =  rows, numRows = length rows }
 
 {-- append buffer --}
 
@@ -233,14 +234,13 @@ editorRow config@EditorConfig
     , numRows = numRows
     , row = row
     } n
-    | n <= numRows            = clearCRNL $ truncate (T.unpack $ head row)
-    | displayWelcomeMessage   = clearCRNL $ padding ++ truncate welcomeMessage
-    | n == windowRows         = clear tilde
-    | otherwise               = clearCRNL tilde
+    | n <= numRows          = clear $ truncate $ T.unpack (row !! (n - 1))
+    | displayWelcomeMessage = clear $ padding ++ truncate welcomeMessage
+    | otherwise             = clear tilde
   where
     tilde = "~"
-    clear row = row ++ clearLineCommand
-    clearCRNL row = clear row ++ "\r\n"
+    clear row = row ++ clearLineCommand ++ maybeCRLN
+    maybeCRLN = if n == windowRows then "" else "\r\n"
     truncate = take windowCols
     displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
     padding
