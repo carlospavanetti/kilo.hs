@@ -31,6 +31,7 @@ type Erow = T.Text
 
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
+    , rowOffset :: Int
     , windowSize :: (Int, Int)
     , numRows :: Int
     , row :: [Erow]
@@ -231,13 +232,15 @@ clearLineCommand = escape "K"
 editorRow :: EditorConfig -> Int -> AppendBuffer
 editorRow config@EditorConfig
     { windowSize = (windowRows, windowCols)
+    , rowOffset = rowOffset
     , numRows = numRows
     , row = row
     } n
-    | n <= numRows          = clear $ truncate $ T.unpack (row !! (n - 1))
+    | fileRow <= numRows    = clear $ truncate $ T.unpack (row !! (fileRow - 1))
     | displayWelcomeMessage = clear $ padding ++ truncate welcomeMessage
     | otherwise             = clear tilde
   where
+    fileRow = n + rowOffset
     tilde = "~"
     clear row = row ++ clearLineCommand ++ maybeCRLN
     maybeCRLN = if n == windowRows then "" else "\r\n"
@@ -300,6 +303,7 @@ editorProcessKeypress config key
 initEditorConfig :: (Int, Int) -> EditorConfig
 initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
+    , rowOffset = 0
     , windowSize = windowSize
     , numRows = 0
     , row = []
