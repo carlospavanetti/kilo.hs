@@ -229,7 +229,7 @@ editorRow config@EditorConfig
     , row = row
     } n
     | n <= numRows            = clearCRNL $ truncate (T.unpack row)
-    | n == windowRows `div` 3 = clearCRNL $ padding ++ truncate welcomeMessage
+    | displayWelcomeMessage   = clearCRNL $ padding ++ truncate welcomeMessage
     | n == windowRows         = clear tilde
     | otherwise               = clearCRNL tilde
   where
@@ -237,6 +237,7 @@ editorRow config@EditorConfig
     clear row = row ++ clearLineCommand
     clearCRNL row = clear row ++ "\r\n"
     truncate = take windowCols
+    displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
     padding
         | (paddingSize <= 0) = ""
         | otherwise          = tilde ++ spaces
@@ -304,8 +305,11 @@ main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
     args <- getArgs
-    let fileName = if null args then "kilo.hs" else head args
-    editorConfig <- editorOpen fileName $ initEditorConfig windowSize
+    let fileName = head args -- doesn't break thanks to lazy evaluation
+    let initConfig = initEditorConfig windowSize
+    editorConfig <- if null args
+        then return initConfig
+        else editorOpen fileName initConfig
     safeLoop editorConfig `finally` disableRawMode originalAttributes
   where
     safeLoop editorConfig = loop editorConfig
