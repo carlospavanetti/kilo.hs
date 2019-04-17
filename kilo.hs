@@ -33,7 +33,7 @@ data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
     , windowSize :: (Int, Int)
     , numRows :: Int
-    , row :: Erow
+    , row :: [Erow]
     } deriving Show
 
 data EditorKey
@@ -205,13 +205,18 @@ getWindowSize :: IO (Int, Int)
 getWindowSize = moveToLimit >> getCursorPosition
   where moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
 
-{-- afile i/o --}
+{-- row operations --}
+
+editorAppendRow :: EditorConfig -> String -> EditorConfig
+editorAppendRow config line = config { row = [T.pack line], numRows = 1 }
+
+{-- file i/o --}
 
 editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
 editorOpen fileName config = do
     file <- openFile fileName ReadMode
     line <- hGetLine file
-    return config { row = T.pack line, numRows = 1 }
+    return $ editorAppendRow config line
 
 {-- append buffer --}
 
@@ -228,7 +233,7 @@ editorRow config@EditorConfig
     , numRows = numRows
     , row = row
     } n
-    | n <= numRows            = clearCRNL $ truncate (T.unpack row)
+    | n <= numRows            = clearCRNL $ truncate (T.unpack $ head row)
     | displayWelcomeMessage   = clearCRNL $ padding ++ truncate welcomeMessage
     | n == windowRows         = clear tilde
     | otherwise               = clearCRNL tilde
@@ -297,7 +302,7 @@ initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
     , windowSize = windowSize
     , numRows = 0
-    , row = T.pack ""
+    , row = []
     }
 
 main :: IO ()
