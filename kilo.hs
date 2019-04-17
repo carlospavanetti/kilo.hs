@@ -9,6 +9,9 @@ import Control.Monad (void)
 
 import qualified Data.Text as T
 
+import System.IO
+import System.Environment
+
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (die, exitSuccess)
@@ -204,8 +207,11 @@ getWindowSize = moveToLimit >> getCursorPosition
 
 {-- afile i/o --}
 
-editorOpen :: EditorConfig -> EditorConfig
-editorOpen config = config { row = T.pack "Hello, world!", numRows = 1 }
+editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
+editorOpen fileName config = do
+    file <- openFile fileName ReadMode
+    line <- hGetLine file
+    return config { row = T.pack line, numRows = 1 }
 
 {-- append buffer --}
 
@@ -297,7 +303,9 @@ main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    let editorConfig = editorOpen $ initEditorConfig windowSize
+    args <- getArgs
+    let fileName = if null args then "kilo.hs" else head args
+    editorConfig <- editorOpen fileName $ initEditorConfig windowSize
     safeLoop editorConfig `finally` disableRawMode originalAttributes
   where
     safeLoop editorConfig = loop editorConfig
