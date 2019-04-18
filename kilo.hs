@@ -269,12 +269,13 @@ editorDrawRows config = concatMap (editorRow config) [1.. rows]
 
 editorRefreshScreen :: EditorConfig -> IO ()
 editorRefreshScreen config@EditorConfig
-    { cursor = cursor
+    { cursor = (x, y)
+    , rowOffset = rowOffset
     , windowSize = (rows, cols) } =
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows config)
-    >> editorPositionCursor cursor
+    >> editorPositionCursor (x, y - rowOffset)
     >> editorShowCursor
 
 {-- input --}
