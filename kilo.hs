@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 {-- imports --}
@@ -7,6 +8,7 @@ import Data.Char (chr, ord, isNumber)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
+import Text.Printf (printf)
 import qualified Data.Text as T
 
 import System.IO
@@ -20,10 +22,11 @@ import System.Posix.Terminal
 
 {-- defines --}
 
-kiloVersion :: String
+kiloVersion :: AppendBuffer
 kiloVersion = "0.0.1"
 
-welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
+welcomeMessage :: AppendBuffer
+welcomeMessage = "Kilo.hs editor -- version " `mappend` kiloVersion
 
 {-- data --}
 
@@ -156,20 +159,19 @@ handleEscapeSequence key
     processResult Escape = Key '\ESC'
     processResult (Final key) = key
 
-escape :: AppendBuffer -> AppendBuffer
-escape cmd = '\ESC': '[': cmd
+escape :: String -> String
+escape cmd = "\ESC[" `mappend` cmd
 
-unescape :: AppendBuffer -> Maybe AppendBuffer
+unescape :: String -> Maybe String
 unescape ('\ESC': '[': cmd) = Just cmd
 unescape _ = Nothing
 
-terminalCommand :: AppendBuffer -> IO ()
+terminalCommand :: String -> IO ()
 terminalCommand cmd = void $ fdWrite stdOutput (escape cmd)
 
 editorPositionCursor :: (Int, Int) -> IO ()
-editorPositionCursor (x, y) =
-    let positionCursor = show y ++ ";" ++ show x ++ "H"
-    in terminalCommand positionCursor
+editorPositionCursor (x, y) = terminalCommand positionCursor
+  where positionCursor = printf "%d;%dH" y x
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = terminalCommand "H"
@@ -188,19 +190,18 @@ getCursorPosition =
     terminalCommand "6n"
     >> readCursorReport >>= parseReport
   where
-    readCursorReport :: IO (Maybe AppendBuffer)
+    readCursorReport :: IO (Maybe String)
     readCursorReport = unescape <$> getUntilR ""
-    getUntilR :: AppendBuffer -> IO AppendBuffer
+    getUntilR :: String -> IO String
     getUntilR acc =
         editorReadRawChar
         >>= \char -> case char of
             'R' -> return acc
             _   -> getUntilR (acc ++ [char])
-    parseReport :: Maybe AppendBuffer -> IO (Int, Int)
+    parseReport :: Maybe String -> IO (Int, Int)
     parseReport Nothing = die "getCursorPosition"
     parseReport (Just report) = do
         let (rows, _: cols) = break (== ';') report
-        fdWrite stdOutput "\r"
         return (read rows, read cols)
 
 getWindowSize :: IO (Int, Int)
@@ -209,8 +210,8 @@ getWindowSize = moveToLimit >> getCursorPosition
 
 {-- row operations --}
 
-editorAppendRow :: EditorConfig -> String -> EditorConfig
-editorAppendRow config line = config { row = [T.pack line], numRows = 1 }
+-- editorAppendRow :: EditorConfig -> AppendBuffer -> EditorConfig
+-- editorAppendRow config line = config { row = [line], numRows = 1 }
 
 {-- file i/o --}
 
@@ -218,12 +219,12 @@ editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
 editorOpen fileName config = do
     file <- openFile fileName ReadMode
     content <- hGetContents file
-    let rows = T.splitOn (T.pack "\n") (T.pack content)
+    let rows = T.splitOn "\n" (T.pack content)
     return config { row =  rows, numRows = length rows }
 
 {-- append buffer --}
 
-type AppendBuffer = String
+type AppendBuffer = T.Text
 
 {-- output --}
 
@@ -245,7 +246,7 @@ editorScroll config@EditorConfig
         | otherwise            = colOffset
 
 clearLineCommand :: AppendBuffer
-clearLineCommand = escape "K"
+clearLineCommand = T.pack $ escape "K"
 
 editorRow :: EditorConfig -> Int -> AppendBuffer
 editorRow config@EditorConfig
@@ -256,24 +257,25 @@ editorRow config@EditorConfig
     , row = row
     , cursor = (_, y)
     } n
-    | fileRow <= numRows    = clear . truncate . drop colOffset $ T.unpack (row !! (fileRow - 1))
-    | displayWelcomeMessage = clear $ padding ++ truncate welcomeMessage
+    | fileRow <= numRows    = clear . truncate . T.drop colOffset $ currentRow
+    | displayWelcomeMessage = clear $ padding `mappend` truncate welcomeMessage
     | otherwise             = clear tilde
   where
     fileRow = n + rowOffset
+    currentRow = row !! (fileRow - 1)
     tilde = "~"
-    clear row = row ++ clearLineCommand ++ maybeCRLN
+    clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
     maybeCRLN = if n == windowRows then "" else "\r\n"
-    truncate = take (windowCols - colOffset)
+    truncate = T.take (windowCols - colOffset)
     displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
     padding
         | (paddingSize <= 0) = ""
-        | otherwise          = tilde ++ spaces
-    paddingSize = (windowCols - length welcomeMessage) `div` 2
-    spaces = foldr (:) "" (replicate (paddingSize - length tilde) ' ')
+        | otherwise          = tilde `mappend` spaces
+    paddingSize = (windowCols - T.length welcomeMessage) `div` 2
+    spaces = T.replicate (paddingSize - T.length tilde) " "
 
 editorDrawRows :: EditorConfig -> AppendBuffer
-editorDrawRows config = concatMap (editorRow config) [1.. rows]
+editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
   where (rows, _) = windowSize config
 
 editorRefreshScreen :: EditorConfig -> IO ()
@@ -284,7 +286,7 @@ editorRefreshScreen config@EditorConfig
     , windowSize = (rows, cols) } =
     editorHideCursor
     >> editorRepositionCursor
-    >> fdWrite stdOutput (editorDrawRows config)
+    >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
     >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
 
