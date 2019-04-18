@@ -32,6 +32,7 @@ type Erow = T.Text
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
     , rowOffset :: Int
+    , colOffset :: Int
     , windowSize :: (Int, Int)
     , numRows :: Int
     , row :: [Erow]
@@ -228,13 +229,20 @@ type AppendBuffer = String
 
 editorScroll :: EditorConfig -> EditorConfig
 editorScroll config@EditorConfig
-    { cursor = (_, y)
+    { cursor = (x, y)
     , rowOffset = rowOffset
-    , windowSize = (rows, _)
-    }
-    | y <= rowOffset       = config { rowOffset = y - 1 }
-    | y > rowOffset + rows = config { rowOffset = y - rows }
-    | otherwise            = config
+    , colOffset = colOffset
+    , windowSize = (rows, cols)
+    } = config { rowOffset = rowOffset', colOffset = colOffset' }
+  where
+    rowOffset'
+        | y <= rowOffset       = y - 1
+        | y > rowOffset + rows = y - rows
+        | otherwise            = rowOffset
+    colOffset'
+        | x <= colOffset       = x - 1
+        | x > colOffset + cols = x - cols
+        | otherwise            = colOffset
 
 clearLineCommand :: AppendBuffer
 clearLineCommand = escape "K"
@@ -243,11 +251,12 @@ editorRow :: EditorConfig -> Int -> AppendBuffer
 editorRow config@EditorConfig
     { windowSize = (windowRows, windowCols)
     , rowOffset = rowOffset
+    , colOffset = colOffset
     , numRows = numRows
     , row = row
     , cursor = (_, y)
     } n
-    | fileRow <= numRows    = clear $ truncate $ T.unpack (row !! (fileRow - 1))
+    | fileRow <= numRows    = clear . truncate . drop colOffset $ T.unpack (row !! (fileRow - 1))
     | displayWelcomeMessage = clear $ padding ++ truncate welcomeMessage
     | otherwise             = clear tilde
   where
@@ -255,7 +264,7 @@ editorRow config@EditorConfig
     tilde = "~"
     clear row = row ++ clearLineCommand ++ maybeCRLN
     maybeCRLN = if n == windowRows then "" else "\r\n"
-    truncate = take windowCols
+    truncate = take (windowCols - colOffset)
     displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
     padding
         | (paddingSize <= 0) = ""
@@ -299,7 +308,7 @@ editorMoveCursor move config@EditorConfig
         EndKey     -> config { cursor = (cols, y) }
         _   -> config
   where
-    boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 numRows y)
+    boundToScreenSize (x, y) = (max 1 x, boundTo 1 numRows y)
     boundTo lower higher = max lower . min higher
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
@@ -317,6 +326,7 @@ initEditorConfig :: (Int, Int) -> EditorConfig
 initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
     , rowOffset = 0
+    , colOffset = 0
     , windowSize = windowSize
     , numRows = 0
     , row = []
