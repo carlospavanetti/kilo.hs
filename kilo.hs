@@ -226,6 +226,16 @@ type AppendBuffer = String
 
 {-- output --}
 
+editorScroll :: EditorConfig -> EditorConfig
+editorScroll config@EditorConfig
+    { cursor = (_, y)
+    , rowOffset = rowOffset
+    , windowSize = (rows, _)
+    }
+    | y <= rowOffset       = config { rowOffset = y - 1 }
+    | y > rowOffset + rows = config { rowOffset = y - rows }
+    | otherwise            = config
+
 clearLineCommand :: AppendBuffer
 clearLineCommand = escape "K"
 
@@ -235,6 +245,7 @@ editorRow config@EditorConfig
     , rowOffset = rowOffset
     , numRows = numRows
     , row = row
+    , cursor = (_, y)
     } n
     | fileRow <= numRows    = clear $ truncate $ T.unpack (row !! (fileRow - 1))
     | displayWelcomeMessage = clear $ padding ++ truncate welcomeMessage
@@ -274,6 +285,7 @@ controlKey = Key . chr . ((.&.) 0x1F) . ord
 editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
     { cursor = (x, y)
+    , numRows = numRows
     , windowSize = (rows, cols) } =
     case move of
         ArrowLeft  -> config { cursor = boundToScreenSize (x - 1, y) }
@@ -286,7 +298,7 @@ editorMoveCursor move config@EditorConfig
         EndKey     -> config { cursor = (cols, y) }
         _   -> config
   where
-    boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 rows y)
+    boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 numRows y)
     boundTo lower higher = max lower . min higher
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
@@ -326,6 +338,7 @@ main = do
     retry :: EditorConfig -> IOException -> IO ()
     retry = const . safeLoop
     loop editorConfig =
-        editorRefreshScreen editorConfig
-        >> editorReadKey >>= editorProcessKeypress editorConfig
+        let scrolledConfig = editorScroll editorConfig in
+        editorRefreshScreen scrolledConfig
+        >> editorReadKey >>= editorProcessKeypress scrolledConfig
         >>= loop
