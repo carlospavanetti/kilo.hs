@@ -280,11 +280,12 @@ editorRefreshScreen :: EditorConfig -> IO ()
 editorRefreshScreen config@EditorConfig
     { cursor = (x, y)
     , rowOffset = rowOffset
+    , colOffset = colOffset
     , windowSize = (rows, cols) } =
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (editorDrawRows config)
-    >> editorPositionCursor (x, y - rowOffset)
+    >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
 
 {-- input --}
