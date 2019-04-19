@@ -299,6 +299,7 @@ editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
     { cursor = (x, y)
     , numRows = numRows
+    , row = row
     , windowSize = (rows, cols) } =
     case move of
         ArrowLeft  -> config { cursor = boundToScreenSize (x - 1, y) }
@@ -311,8 +312,12 @@ editorMoveCursor move config@EditorConfig
         EndKey     -> config { cursor = (cols, y) }
         _   -> config
   where
-    boundToScreenSize (x, y) = (max 1 x, boundTo 1 numRows y)
+    boundToScreenSize (x, y) =
+        let x' = boundTo 1 (lineEnd y') x
+            y' = boundTo 1 numRows y
+        in (x', y')
     boundTo lower higher = max lower . min higher
+    lineEnd i = 1 + T.length (row !! (i - 1))
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
 editorProcessKeypress config key
