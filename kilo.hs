@@ -314,11 +314,13 @@ editorMoveCursor move config@EditorConfig
   where
     boundToScreenSize (x, y)
         | x == 0 && y /= 1 = (lineEnd y'', y'')
+        | x > lineEnd y' = (1, y_)
         | otherwise =  (x', y')
       where
         x'  = boundTo 1 (lineEnd y') x
         y'  = boundTo 1 numRows y
         y'' = boundTo 1 numRows (y' - 1)
+        y_  = boundTo 1 numRows (y + 1)
     boundTo lower higher = max lower . min higher
     lineEnd i = 1 + T.length (row !! (i - 1))
 
