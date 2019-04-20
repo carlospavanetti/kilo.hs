@@ -266,13 +266,14 @@ editorRow config@EditorConfig
     tilde = "~"
     clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
     maybeCRLN = if n == windowRows then "" else "\r\n"
-    truncate = T.take (windowCols - colOffset)
+    truncate = T.take windowCols
     displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
     padding
         | (paddingSize <= 0) = ""
         | otherwise          = tilde `mappend` spaces
     paddingSize = (windowCols - T.length welcomeMessage) `div` 2
     spaces = T.replicate (paddingSize - T.length tilde) " "
+
 
 editorDrawRows :: EditorConfig -> AppendBuffer
 editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
@@ -297,32 +298,37 @@ controlKey = Key . chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
-    { cursor = (x, y)
+    { cursor = cursor@(cx, cy)
     , numRows = numRows
     , row = row
     , windowSize = (rows, cols) } =
     case move of
-        ArrowLeft  -> config { cursor = boundToScreenSize (x - 1, y) }
-        ArrowRight -> config { cursor = boundToScreenSize (x + 1, y) }
-        ArrowUp    -> config { cursor = boundToScreenSize (x, y - 1) }
-        ArrowDown  -> config { cursor = boundToScreenSize (x, y + 1) }
-        PageUp     -> config { cursor = (x,    1) }
-        PageDown   -> config { cursor = (x, rows) }
-        HomeKey    -> config { cursor = (1,    y) }
-        EndKey     -> config { cursor = (cols, y) }
-        _   -> config
+        ArrowLeft  -> config { cursor = moveByDx (-1) cursor }
+        ArrowRight -> config { cursor = moveByDx   1  cursor }
+        ArrowUp    -> config { cursor = moveByDy (-1) cursor }
+        ArrowDown  -> config { cursor = moveByDy   1  cursor }
+        PageUp     -> config { cursor = (cx,    1) }
+        PageDown   -> config { cursor = (cx, rows) }
+        HomeKey    -> config { cursor = (1,    cy) }
+        EndKey     -> config { cursor = (cols, cy) }
+        _          -> config
   where
-    boundToScreenSize (x, y)
-        | x == 0 && y /= 1 = (lineEnd y'', y'')
-        | x > lineEnd y' = (1, y_)
-        | otherwise =  (x', y')
-      where
-        x'  = boundTo 1 (lineEnd y') x
-        y'  = boundTo 1 numRows y
-        y'' = boundTo 1 numRows (y' - 1)
-        y_  = boundTo 1 numRows (y + 1)
+    endOf line
+        | line > numRows = 0
+        | otherwise      = 1 + T.length (row !! (line - 1))
     boundTo lower higher = max lower . min higher
-    lineEnd i = 1 + T.length (row !! (i - 1))
+    boundToHeight (x, y) = (x, boundTo 1 (1 + numRows) y)
+    boundToWidth  (x, y) = (boundTo 1 (endOf y) x, y)
+    moveByDx dx (x, y) = boundToWidth $ changeLine (x + dx, y)
+      where
+        previousLine = y - 1
+        currentLine  = boundTo 1 (1 + numRows) y
+        nextLine     = boundTo 1 (1 + numRows) (1 + currentLine)
+        changeLine (x, y)
+            | x == 0 && y /= 1             = (endOf previousLine, previousLine)
+            | x == (1 + endOf currentLine) = (1, nextLine)
+            | otherwise                    = (x, currentLine)
+    moveByDy dy (x, y) = boundToWidth (boundToHeight (x, y + dy))
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
 editorProcessKeypress config key
