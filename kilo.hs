@@ -312,10 +312,13 @@ editorMoveCursor move config@EditorConfig
         EndKey     -> config { cursor = (cols, y) }
         _   -> config
   where
-    boundToScreenSize (x, y) =
-        let x' = boundTo 1 (lineEnd y') x
-            y' = boundTo 1 numRows y
-        in (x', y')
+    boundToScreenSize (x, y)
+        | x == 0 && y /= 1 = (lineEnd y'', y'')
+        | otherwise =  (x', y')
+      where
+        x'  = boundTo 1 (lineEnd y') x
+        y'  = boundTo 1 numRows y
+        y'' = boundTo 1 numRows (y' - 1)
     boundTo lower higher = max lower . min higher
     lineEnd i = 1 + T.length (row !! (i - 1))
 
