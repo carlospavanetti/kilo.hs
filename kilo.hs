@@ -313,22 +313,23 @@ editorMoveCursor move config@EditorConfig
         EndKey     -> config { cursor = (cols, cy) }
         _          -> config
   where
-    endOf line
-        | line > numRows = 0
-        | otherwise      = 1 + T.length (row !! (line - 1))
+    moveByDy dy (x, y) = boundToWidth $ boundToHeight (x, y + dy)
+    moveByDx dx (x, y) = boundToWidth $ changeLine    (x + dx, y)
+      where
+        previousLine     = y - 1
+        (_, currentLine) = boundToHeight (0, y)
+        (_, nextLine)    = boundToHeight (0, 1 + currentLine)
+        outOfCurrentLine = 1 + endOf currentLine
+        changeLine (x, y)
+            | x == 0 && y /= 1      = (endOf previousLine, previousLine)
+            | x == outOfCurrentLine = (1, nextLine)
+            | otherwise             = (x, currentLine)
     boundTo lower higher = max lower . min higher
     boundToHeight (x, y) = (x, boundTo 1 (1 + numRows) y)
     boundToWidth  (x, y) = (boundTo 1 (endOf y) x, y)
-    moveByDx dx (x, y) = boundToWidth $ changeLine (x + dx, y)
-      where
-        previousLine = y - 1
-        currentLine  = boundTo 1 (1 + numRows) y
-        nextLine     = boundTo 1 (1 + numRows) (1 + currentLine)
-        changeLine (x, y)
-            | x == 0 && y /= 1             = (endOf previousLine, previousLine)
-            | x == (1 + endOf currentLine) = (1, nextLine)
-            | otherwise                    = (x, currentLine)
-    moveByDy dy (x, y) = boundToWidth (boundToHeight (x, y + dy))
+    endOf line
+        | line > numRows = 0
+        | otherwise      = 1 + T.length (row !! (line - 1))
 
 editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
 editorProcessKeypress config key
