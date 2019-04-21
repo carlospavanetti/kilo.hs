@@ -106,10 +106,11 @@ handleEscapeSequence key
   where
     readRawByte :: (Char -> IO EscapeSequence) -> IO EscapeSequence
     readRawByte select = do
-        ([seq], nread) <- fdRead stdInput 1
+        (seq, nread) <- fdRead stdInput 1
         case nread of
-            1 -> select seq
+            1 -> select (head seq)
             _ -> return Escape
+        `catch` ((\e -> return Escape) :: IOException -> IO EscapeSequence)
     readIntroducer :: IO EscapeSequence
     readIntroducer = readRawByte $
         \seq -> if seq == '['
