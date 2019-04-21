@@ -280,7 +280,7 @@ editorDrawRows :: EditorConfig -> AppendBuffer
 editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
   where (rows, _) = windowSize config
 
-editorRefreshScreen :: EditorConfig -> IO ()
+editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
     { cursor = (x, y)
     , rowOffset = rowOffset
@@ -291,6 +291,7 @@ editorRefreshScreen config@EditorConfig
     >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
     >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
+    >> return config
 
 {-- input --}
 
@@ -332,14 +333,13 @@ editorMoveCursor move config@EditorConfig
         | line > numRows = 0
         | otherwise      = 1 + T.length (row !! (line - 1))
 
-editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
-editorProcessKeypress config key
-    | (key == controlKey 'q') =
-        editorClearScreen >> exitSuccess >> return config
-    | otherwise = return newEditorConfig
+editorProcessKeypress :: EditorConfig -> IO EditorConfig
+editorProcessKeypress config = editorReadKey >>= handleKeypress
   where
-    newEditorConfig :: EditorConfig
-    newEditorConfig = editorMoveCursor key config
+    handleKeypress key
+        | (key == controlKey 'q') =
+            editorClearScreen >> exitSuccess >> return config
+        | otherwise = return (editorMoveCursor key config)
 
 {-- init --}
 
@@ -370,7 +370,6 @@ main = do
     retry :: EditorConfig -> IOException -> IO ()
     retry = const . safeLoop
     loop editorConfig =
-        let scrolledConfig = editorScroll editorConfig in
-        editorRefreshScreen scrolledConfig
-        >> editorReadKey >>= editorProcessKeypress scrolledConfig
+        editorRefreshScreen (editorScroll editorConfig)
+        >>= editorProcessKeypress
         >>= loop
