@@ -250,25 +250,24 @@ clearLineCommand :: AppendBuffer
 clearLineCommand = T.pack $ escape "K"
 
 editorRow :: EditorConfig -> Int -> AppendBuffer
-editorRow config@EditorConfig
+editorRow EditorConfig
     { windowSize = (windowRows, windowCols)
     , rowOffset = rowOffset
     , colOffset = colOffset
     , numRows = numRows
     , row = row
-    , cursor = (_, y)
-    } n
+    } rowIndex
     | fileRow <= numRows    = clear . truncate . T.drop colOffset $ currentRow
     | displayWelcomeMessage = clear $ padding `mappend` truncate welcomeMessage
     | otherwise             = clear tilde
   where
-    fileRow = n + rowOffset
+    fileRow = rowIndex + rowOffset
     currentRow = row !! (fileRow - 1)
     tilde = "~"
     clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
-    maybeCRLN = if n == windowRows then "" else "\r\n"
+    maybeCRLN = if rowIndex == windowRows then "" else "\r\n"
     truncate = T.take windowCols
-    displayWelcomeMessage = numRows == 0 && n == windowRows `div` 3
+    displayWelcomeMessage = numRows == 0 && rowIndex == windowRows `div` 3
     padding
         | (paddingSize <= 0) = ""
         | otherwise          = tilde `mappend` spaces
