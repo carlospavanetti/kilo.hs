@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 {-- imports --}
@@ -7,6 +8,12 @@ import Data.Char (chr, ord, isNumber)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
+import Text.Printf (printf)
+import qualified Data.Text as T
+
+import System.IO
+import System.Environment
+
 import Foreign.C.Error (eAGAIN, getErrno)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (die, exitSuccess)
@@ -15,16 +22,23 @@ import System.Posix.Terminal
 
 {-- defines --}
 
-kiloVersion :: String
+kiloVersion :: AppendBuffer
 kiloVersion = "0.0.1"
 
-welcomeMessage = "Kilo.hs editor -- version " ++ kiloVersion
+welcomeMessage :: AppendBuffer
+welcomeMessage = "Kilo.hs editor -- version " `mappend` kiloVersion
 
 {-- data --}
 
+type Erow = T.Text
+
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
+    , rowOffset :: Int
+    , colOffset :: Int
     , windowSize :: (Int, Int)
+    , numRows :: Int
+    , row :: [Erow]
     } deriving Show
 
 data EditorKey
@@ -92,10 +106,11 @@ handleEscapeSequence key
   where
     readRawByte :: (Char -> IO EscapeSequence) -> IO EscapeSequence
     readRawByte select = do
-        ([seq], nread) <- fdRead stdInput 1
+        (seq, nread) <- fdRead stdInput 1
         case nread of
-            1 -> select seq
+            1 -> select (head seq)
             _ -> return Escape
+        `catch` ((\e -> return Escape) :: IOException -> IO EscapeSequence)
     readIntroducer :: IO EscapeSequence
     readIntroducer = readRawByte $
         \seq -> if seq == '['
@@ -145,20 +160,19 @@ handleEscapeSequence key
     processResult Escape = Key '\ESC'
     processResult (Final key) = key
 
-escape :: AppendBuffer -> AppendBuffer
-escape cmd = '\ESC': '[': cmd
+escape :: String -> String
+escape cmd = "\ESC[" `mappend` cmd
 
-unescape :: AppendBuffer -> Maybe AppendBuffer
+unescape :: String -> Maybe String
 unescape ('\ESC': '[': cmd) = Just cmd
 unescape _ = Nothing
 
-terminalCommand :: AppendBuffer -> IO ()
+terminalCommand :: String -> IO ()
 terminalCommand cmd = void $ fdWrite stdOutput (escape cmd)
 
 editorPositionCursor :: (Int, Int) -> IO ()
-editorPositionCursor (x, y) =
-    let positionCursor = show y ++ ";" ++ show x ++ "H"
-    in terminalCommand positionCursor
+editorPositionCursor (x, y) = terminalCommand positionCursor
+  where positionCursor = printf "%d;%dH" y x
 
 editorRepositionCursor :: IO ()
 editorRepositionCursor = terminalCommand "H"
@@ -177,61 +191,106 @@ getCursorPosition =
     terminalCommand "6n"
     >> readCursorReport >>= parseReport
   where
-    readCursorReport :: IO (Maybe AppendBuffer)
+    readCursorReport :: IO (Maybe String)
     readCursorReport = unescape <$> getUntilR ""
-    getUntilR :: AppendBuffer -> IO AppendBuffer
+    getUntilR :: String -> IO String
     getUntilR acc =
         editorReadRawChar
         >>= \char -> case char of
             'R' -> return acc
             _   -> getUntilR (acc ++ [char])
-    parseReport :: Maybe AppendBuffer -> IO (Int, Int)
+    parseReport :: Maybe String -> IO (Int, Int)
     parseReport Nothing = die "getCursorPosition"
     parseReport (Just report) = do
         let (rows, _: cols) = break (== ';') report
-        fdWrite stdOutput "\r"
         return (read rows, read cols)
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = moveToLimit >> getCursorPosition
   where moveToLimit = terminalCommand "999C" >> terminalCommand "999B"
 
+{-- row operations --}
+
+-- editorAppendRow :: EditorConfig -> AppendBuffer -> EditorConfig
+-- editorAppendRow config line = config { row = [line], numRows = 1 }
+
+{-- file i/o --}
+
+editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
+editorOpen fileName config = do
+    file <- openFile fileName ReadMode
+    content <- hGetContents file
+    let rows = T.splitOn "\n" (T.pack content)
+    return config { row =  rows, numRows = length rows }
+
 {-- append buffer --}
 
-type AppendBuffer = String
+type AppendBuffer = T.Text
 
 {-- output --}
 
-clearLineCommand :: AppendBuffer
-clearLineCommand = escape "K"
-
-editorRow :: Int -> Int -> Int -> AppendBuffer
-editorRow windowRows windowCols n
-    | n == windowRows `div` 3 = padding ++ welcomeLine ++ "\r\n"
-    | n == windowRows = tilde
-    | otherwise = tilde ++ "\r\n"
+editorScroll :: EditorConfig -> EditorConfig
+editorScroll config@EditorConfig
+    { cursor = (x, y)
+    , rowOffset = rowOffset
+    , colOffset = colOffset
+    , windowSize = (rows, cols)
+    } = config { rowOffset = rowOffset', colOffset = colOffset' }
   where
-    tilde = '~': clearLineCommand
-    welcomeLine = welcomeMessage ++ clearLineCommand
+    rowOffset'
+        | y <= rowOffset       = y - 1
+        | y > rowOffset + rows = y - rows
+        | otherwise            = rowOffset
+    colOffset'
+        | x <= colOffset       = x - 1
+        | x > colOffset + cols = x - cols
+        | otherwise            = colOffset
+
+clearLineCommand :: AppendBuffer
+clearLineCommand = T.pack $ escape "K"
+
+editorRow :: EditorConfig -> Int -> AppendBuffer
+editorRow EditorConfig
+    { windowSize = (windowRows, windowCols)
+    , rowOffset = rowOffset
+    , colOffset = colOffset
+    , numRows = numRows
+    , row = row
+    } rowIndex
+    | fileRow <= numRows    = clear . truncate . T.drop colOffset $ currentRow
+    | displayWelcomeMessage = clear $ padding `mappend` truncate welcomeMessage
+    | otherwise             = clear tilde
+  where
+    fileRow = rowIndex + rowOffset
+    currentRow = row !! (fileRow - 1)
+    tilde = "~"
+    clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
+    maybeCRLN = if rowIndex == windowRows then "" else "\r\n"
+    truncate = T.take windowCols
+    displayWelcomeMessage = numRows == 0 && rowIndex == windowRows `div` 3
     padding
-        | (paddingSize == 0) = ""
-        | otherwise = '~': spaces
-    paddingSize = min windowCols $
-        (windowCols - length welcomeMessage) `div` 2
-    spaces = foldr (:) "" (replicate (paddingSize - 1) ' ')
+        | (paddingSize <= 0) = ""
+        | otherwise          = tilde `mappend` spaces
+    paddingSize = (windowCols - T.length welcomeMessage) `div` 2
+    spaces = T.replicate (paddingSize - T.length tilde) " "
 
-editorDrawRows :: Int -> Int -> AppendBuffer
-editorDrawRows rows cols = concatMap (editorRow rows cols) [1.. rows]
 
-editorRefreshScreen :: EditorConfig -> IO ()
-editorRefreshScreen EditorConfig
-    { cursor = cursor
+editorDrawRows :: EditorConfig -> AppendBuffer
+editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
+  where (rows, _) = windowSize config
+
+editorRefreshScreen :: EditorConfig -> IO EditorConfig
+editorRefreshScreen config@EditorConfig
+    { cursor = (x, y)
+    , rowOffset = rowOffset
+    , colOffset = colOffset
     , windowSize = (rows, cols) } =
     editorHideCursor
     >> editorRepositionCursor
-    >> fdWrite stdOutput (editorDrawRows rows cols)
-    >> editorPositionCursor cursor
+    >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
+    >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
+    >> return config
 
 {-- input --}
 
@@ -240,49 +299,76 @@ controlKey = Key . chr . ((.&.) 0x1F) . ord
 
 editorMoveCursor :: EditorKey -> EditorConfig -> EditorConfig
 editorMoveCursor move config@EditorConfig
-    { cursor = (x, y)
+    { cursor = cursor@(cx, cy)
+    , numRows = numRows
+    , row = row
     , windowSize = (rows, cols) } =
     case move of
-        ArrowLeft  -> config { cursor = boundToScreenSize (x - 1, y) }
-        ArrowRight -> config { cursor = boundToScreenSize (x + 1, y) }
-        ArrowUp    -> config { cursor = boundToScreenSize (x, y - 1) }
-        ArrowDown  -> config { cursor = boundToScreenSize (x, y + 1) }
-        PageUp     -> config { cursor = (x,    1) }
-        PageDown   -> config { cursor = (x, rows) }
-        HomeKey    -> config { cursor = (1,    y) }
-        EndKey     -> config { cursor = (cols, y) }
-        _   -> config
+        ArrowLeft  -> config { cursor = moveByDx (-1) cursor }
+        ArrowRight -> config { cursor = moveByDx   1  cursor }
+        ArrowUp    -> config { cursor = moveByDy (-1) cursor }
+        ArrowDown  -> config { cursor = moveByDy   1  cursor }
+        PageUp     -> config { cursor = (cx,    1) }
+        PageDown   -> config { cursor = (cx, rows) }
+        HomeKey    -> config { cursor = (1,    cy) }
+        EndKey     -> config { cursor = (cols, cy) }
+        _          -> config
   where
-    boundToScreenSize (x, y) = (boundTo 1 cols x, boundTo 1 rows y)
+    moveByDy dy (x, y) = boundToWidth $ boundToHeight (x, y + dy)
+    moveByDx dx (x, y) = boundToWidth $ changeLine    (x + dx, y)
+      where
+        previousLine     = y - 1
+        (_, currentLine) = boundToHeight (0, y)
+        (_, nextLine)    = boundToHeight (0, 1 + currentLine)
+        outOfCurrentLine = 1 + endOf currentLine
+        changeLine (x, y)
+            | x == 0 && y /= 1      = (endOf previousLine, previousLine)
+            | x == outOfCurrentLine = (1, nextLine)
+            | otherwise             = (x, currentLine)
     boundTo lower higher = max lower . min higher
+    boundToHeight (x, y) = (x, boundTo 1 (1 + numRows) y)
+    boundToWidth  (x, y) = (boundTo 1 (endOf y) x, y)
+    endOf line
+        | line > numRows = 0
+        | otherwise      = 1 + T.length (row !! (line - 1))
 
-editorProcessKeypress :: EditorConfig -> EditorKey -> IO EditorConfig
-editorProcessKeypress config key
-    | (key == controlKey 'q') =
-        editorClearScreen >> exitSuccess >> return config
-    | otherwise = return newEditorConfig
+editorProcessKeypress :: EditorConfig -> IO EditorConfig
+editorProcessKeypress config = editorReadKey >>= handleKeypress
   where
-    newEditorConfig :: EditorConfig
-    newEditorConfig = editorMoveCursor key config
+    handleKeypress key
+        | (key == controlKey 'q') =
+            editorClearScreen >> exitSuccess >> return config
+        | otherwise = return (editorMoveCursor key config)
 
 {-- init --}
 
 initEditorConfig :: (Int, Int) -> EditorConfig
 initEditorConfig windowSize = EditorConfig
     { cursor = (1, 1)
-    , windowSize = windowSize }
+    , rowOffset = 0
+    , colOffset = 0
+    , windowSize = windowSize
+    , numRows = 0
+    , row = []
+    }
 
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
     windowSize <- getWindowSize
-    safeLoop windowSize `finally` disableRawMode originalAttributes
+    args <- getArgs
+    let fileName = head args -- doesn't break thanks to lazy evaluation
+    let initConfig = initEditorConfig windowSize
+    editorConfig <- if null args
+        then return initConfig
+        else editorOpen fileName initConfig
+    safeLoop editorConfig `finally` disableRawMode originalAttributes
   where
-    safeLoop ws = loop (initEditorConfig ws)
-        `catch` retry ws
-    retry :: (Int, Int) -> IOException -> IO ()
+    safeLoop editorConfig = loop editorConfig
+        `catch` retry editorConfig
+    retry :: EditorConfig -> IOException -> IO ()
     retry = const . safeLoop
     loop editorConfig =
-        editorRefreshScreen editorConfig
-        >> editorReadKey >>= editorProcessKeypress editorConfig
+        editorRefreshScreen (editorScroll editorConfig)
+        >>= editorProcessKeypress
         >>= loop
