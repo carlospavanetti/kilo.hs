@@ -352,16 +352,20 @@ initEditorConfig windowSize = EditorConfig
     , row = []
     }
 
+firstEditorConfig :: IO EditorConfig
+firstEditorConfig = do
+    args <- getArgs
+    windowSize <- getWindowSize
+    let fileName = head args -- doesn't break thanks to lazy evaluation
+    let initConfig = initEditorConfig windowSize
+    if null args
+        then return initConfig
+        else editorOpen fileName initConfig
+
 main :: IO ()
 main = do
     originalAttributes <- enableRawMode
-    windowSize <- getWindowSize
-    args <- getArgs
-    let fileName = head args -- doesn't break thanks to lazy evaluation
-    let initConfig = initEditorConfig windowSize
-    editorConfig <- if null args
-        then return initConfig
-        else editorOpen fileName initConfig
+    editorConfig <- firstEditorConfig
     safeLoop editorConfig `finally` disableRawMode originalAttributes
   where
     safeLoop editorConfig = loop editorConfig
