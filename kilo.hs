@@ -326,8 +326,8 @@ editorMoveCursor move config@EditorConfig
         ArrowRight -> config { cursor = moveByDx   1  cursor }
         ArrowUp    -> config { cursor = moveByDy (-1) cursor }
         ArrowDown  -> config { cursor = moveByDy   1  cursor }
-        PageUp     -> config { cursor = (cx,    1) }
-        PageDown   -> config { cursor = (cx, rows) }
+        PageUp     -> config { cursor = moveByDy (1 - rows) cursor }
+        PageDown   -> config { cursor = moveByDy (rows - 1) cursor }
         HomeKey    -> config { cursor = (1,    cy) }
         EndKey     -> config { cursor = (cols, cy) }
         _          -> config
