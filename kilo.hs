@@ -328,8 +328,8 @@ editorMoveCursor move config@EditorConfig
         ArrowDown  -> config { cursor = moveByDy   1  cursor }
         PageUp     -> config { cursor = moveByDy (1 - rows) cursor }
         PageDown   -> config { cursor = moveByDy (rows - 1) cursor }
-        HomeKey    -> config { cursor = (1,    cy) }
-        EndKey     -> config { cursor = (cols, cy) }
+        HomeKey    -> config { cursor = (1,        cy) }
+        EndKey     -> config { cursor = (endOf cy, cy) }
         _          -> config
   where
     moveByDy dy (x, y) = boundToWidth $ boundToHeight (x, y + dy)
