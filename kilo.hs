@@ -305,14 +305,17 @@ editorDrawStatusBar :: EditorConfig -> AppendBuffer
 editorDrawStatusBar EditorConfig
     { windowSize = (_, cols)
     , fileName = fileName
+    , cursor = (_, cy)
     , numRows = numRows
     } = invertCommand `mappend` statusBar `mappend` restoreCommand
   where
     invertCommand  = escape "7m"
     restoreCommand = escape "m"
-    fillSpaces = T.replicate (cols - T.length content) " "
-    content = T.pack $ printf "%.20s - %d lines" (fromMaybe "[No Name]" fileName) numRows
-    statusBar = content `mappend` fillSpaces
+    name  = fromMaybe "[No Name]" fileName
+    fill  = T.replicate (cols - T.length left - T.length right) " "
+    left  = T.pack $ printf "%.20s - %d lines" name numRows
+    right = T.pack $ printf "%d/%d" (cy - 1) numRows
+    statusBar = left `mappend` fill `mappend` right
 
 editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
