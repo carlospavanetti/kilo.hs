@@ -28,9 +28,12 @@ kiloVersion = "0.0.1"
 welcomeMessage :: AppendBuffer
 welcomeMessage = "Kilo.hs editor -- version " `mappend` kiloVersion
 
+kiloTabStop :: Int
+kiloTabStop = 8
+
 {-- data --}
 
-type Erow = T.Text
+data Erow = Erow { chars :: T.Text, render :: T.Text }
 
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
@@ -39,7 +42,7 @@ data EditorConfig = EditorConfig
     , windowSize :: (Int, Int)
     , numRows :: Int
     , row :: [Erow]
-    } deriving Show
+    }
 
 data EditorKey
     = Key Char
@@ -214,14 +217,29 @@ getWindowSize = moveToLimit >> getCursorPosition
 -- editorAppendRow :: EditorConfig -> AppendBuffer -> EditorConfig
 -- editorAppendRow config line = config { row = [line], numRows = 1 }
 
+editorUpdateRow :: T.Text -> Erow
+editorUpdateRow row = Erow
+    { chars = row
+    , render = T.unfoldr transform (1, T.unpack row)
+    }
+  where
+    transform :: (Int, String) -> Maybe (Char, (Int, String))
+    transform (n, '\t':cs)
+        | reachStop n     = Just (' ', (1, cs))
+        | otherwise       = Just (' ', (n + 1, '\t':cs))
+    transform (idx, c:cs) = Just (c, (idx + 1, cs))
+    transform (idx, "")   = Nothing
+    reachStop n = n `mod` kiloTabStop == 0
+
 {-- file i/o --}
 
 editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
 editorOpen fileName config = do
     file <- openFile fileName ReadMode
     content <- hGetContents file
-    let rows = T.splitOn "\n" (T.pack content)
-    return config { row =  rows, numRows = length rows }
+    let rows  = T.splitOn "\n" (T.pack content)
+    let erows = map editorUpdateRow rows
+    return config { row = erows, numRows = length rows }
 
 {-- append buffer --}
 
@@ -262,7 +280,7 @@ editorRow EditorConfig
     | otherwise             = clear tilde
   where
     fileRow = rowIndex + rowOffset
-    currentRow = row !! (fileRow - 1)
+    currentRow = render $ row !! (fileRow - 1)
     tilde = "~"
     clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
     maybeCRLN = if rowIndex == windowRows then "" else "\r\n"
@@ -330,7 +348,7 @@ editorMoveCursor move config@EditorConfig
     boundToWidth  (x, y) = (boundTo 1 (endOf y) x, y)
     endOf line
         | line > numRows = 0
-        | otherwise      = 1 + T.length (row !! (line - 1))
+        | otherwise      = 1 + T.length (render $ row !! (line - 1))
 
 editorProcessKeypress :: EditorConfig -> IO EditorConfig
 editorProcessKeypress config = editorReadKey >>= handleKeypress
