@@ -21,6 +21,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (die, exitSuccess)
 import System.Posix.IO (fdRead, fdWrite, stdInput, stdOutput)
 import System.Posix.Terminal
+import System.Posix.Time (epochTime)
+import System.Posix.Types (EpochTime)
 
 {-- defines --}
 
@@ -37,6 +39,9 @@ kiloTabStop = 8
 
 data Erow = Erow { chars :: T.Text, render :: T.Text }
 
+data StatusMessage = StatusMessage
+    { message :: T.Text, timestamp :: EpochTime }
+
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
     , rowOffset  :: Int
@@ -45,6 +50,7 @@ data EditorConfig = EditorConfig
     , numRows    :: Int
     , row        :: [Erow]
     , fileName   :: Maybe String
+    , statusMsg  :: StatusMessage
     }
 
 data EditorKey
@@ -381,8 +387,8 @@ editorProcessKeypress config = editorReadKey >>= handleKeypress
 
 {-- init --}
 
-initEditorConfig :: (Int, Int) -> EditorConfig
-initEditorConfig (rows, cols) = EditorConfig
+initEditorConfig :: (Int, Int) -> StatusMessage -> EditorConfig
+initEditorConfig (rows, cols) message = EditorConfig
     { cursor = (1, 1)
     , rowOffset = 0
     , colOffset = 0
@@ -390,14 +396,19 @@ initEditorConfig (rows, cols) = EditorConfig
     , numRows = 0
     , row = []
     , fileName = Nothing
+    , statusMsg = message
     }
 
 firstEditorConfig :: IO EditorConfig
 firstEditorConfig = do
     args <- getArgs
+    timestamp <- epochTime
     windowSize <- getWindowSize
     let fileName = head args -- doesn't break thanks to lazy evaluation
-    let initConfig = initEditorConfig windowSize
+    let statusMsg = StatusMessage
+            { message = "HELP: Ctrl-Q = quit"
+            , timestamp = timestamp }
+    let initConfig = initEditorConfig windowSize statusMsg
     if null args
         then return initConfig
         else editorOpen fileName initConfig
