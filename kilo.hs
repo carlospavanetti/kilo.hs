@@ -30,7 +30,7 @@ welcomeMessage = "Kilo.hs editor -- version " `mappend` kiloVersion
 
 {-- data --}
 
-type Erow = T.Text
+data Erow = Erow { chars :: T.Text, render :: T.Text }
 
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
@@ -39,7 +39,7 @@ data EditorConfig = EditorConfig
     , windowSize :: (Int, Int)
     , numRows :: Int
     , row :: [Erow]
-    } deriving Show
+    }
 
 data EditorKey
     = Key Char
@@ -220,8 +220,9 @@ editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
 editorOpen fileName config = do
     file <- openFile fileName ReadMode
     content <- hGetContents file
-    let rows = T.splitOn "\n" (T.pack content)
-    return config { row =  rows, numRows = length rows }
+    let rows  = T.splitOn "\n" (T.pack content)
+    let erows = map (\r -> Erow { chars = r, render = r }) rows
+    return config { row = erows, numRows = length rows }
 
 {-- append buffer --}
 
@@ -262,7 +263,7 @@ editorRow EditorConfig
     | otherwise             = clear tilde
   where
     fileRow = rowIndex + rowOffset
-    currentRow = row !! (fileRow - 1)
+    currentRow = render $ row !! (fileRow - 1)
     tilde = "~"
     clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
     maybeCRLN = if rowIndex == windowRows then "" else "\r\n"
@@ -330,7 +331,7 @@ editorMoveCursor move config@EditorConfig
     boundToWidth  (x, y) = (boundTo 1 (endOf y) x, y)
     endOf line
         | line > numRows = 0
-        | otherwise      = 1 + T.length (row !! (line - 1))
+        | otherwise      = 1 + T.length (render $ row !! (line - 1))
 
 editorProcessKeypress :: EditorConfig -> IO EditorConfig
 editorProcessKeypress config = editorReadKey >>= handleKeypress
