@@ -5,6 +5,7 @@ module Main where
 
 import Data.Bits ((.&.))
 import Data.Char (chr, ord, isNumber)
+import Data.String (IsString)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
@@ -163,7 +164,7 @@ handleEscapeSequence key
     processResult Escape = Key '\ESC'
     processResult (Final key) = key
 
-escape :: String -> String
+escape :: (IsString a, Monoid a) => a -> a
 escape cmd = "\ESC[" `mappend` cmd
 
 unescape :: String -> Maybe String
@@ -283,7 +284,7 @@ editorRow EditorConfig
     currentRow = render $ row !! (fileRow - 1)
     tilde = "~"
     clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
-    maybeCRLN = if rowIndex == windowRows then "" else "\r\n"
+    maybeCRLN = "\r\n"
     truncate = T.take windowCols
     displayWelcomeMessage = numRows == 0 && rowIndex == windowRows `div` 3
     padding
@@ -297,6 +298,15 @@ editorDrawRows :: EditorConfig -> AppendBuffer
 editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
   where (rows, _) = windowSize config
 
+editorDrawStatusBar :: EditorConfig -> AppendBuffer
+editorDrawStatusBar EditorConfig
+    { windowSize = (_, cols)
+    } = invertCommand `mappend` emptyBar `mappend` restoreCommand
+  where
+    invertCommand  = escape "7m"
+    restoreCommand = escape "m"
+    emptyBar = T.replicate cols " "
+
 editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
     { cursor = (x, y)
@@ -306,6 +316,7 @@ editorRefreshScreen config@EditorConfig
     editorHideCursor
     >> editorRepositionCursor
     >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
+    >> fdWrite stdOutput (T.unpack $ editorDrawStatusBar config)
     >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
     >> return config
@@ -361,11 +372,11 @@ editorProcessKeypress config = editorReadKey >>= handleKeypress
 {-- init --}
 
 initEditorConfig :: (Int, Int) -> EditorConfig
-initEditorConfig windowSize = EditorConfig
+initEditorConfig (rows, cols) = EditorConfig
     { cursor = (1, 1)
     , rowOffset = 0
     , colOffset = 0
-    , windowSize = windowSize
+    , windowSize = (rows - 1, cols)
     , numRows = 0
     , row = []
     }
