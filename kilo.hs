@@ -28,6 +28,9 @@ kiloVersion = "0.0.1"
 welcomeMessage :: AppendBuffer
 welcomeMessage = "Kilo.hs editor -- version " `mappend` kiloVersion
 
+kiloTabStop :: Int
+kiloTabStop = 8
+
 {-- data --}
 
 data Erow = Erow { chars :: T.Text, render :: T.Text }
@@ -222,10 +225,11 @@ editorUpdateRow row = Erow
   where
     transform :: (Int, String) -> Maybe (Char, (Int, String))
     transform (n, '\t':cs)
-        | n `mod` 8 == 0 = Just (' ', (1, cs))
-        | otherwise      = Just (' ', (n + 1, '\t':cs))
-    transform (idx, c:cs)  = Just (c, (idx + 1, cs))
-    transform (idx, "")    = Nothing
+        | reachStop n     = Just (' ', (1, cs))
+        | otherwise       = Just (' ', (n + 1, '\t':cs))
+    transform (idx, c:cs) = Just (c, (idx + 1, cs))
+    transform (idx, "")   = Nothing
+    reachStop n = n `mod` kiloTabStop == 0
 
 {-- file i/o --}
 
