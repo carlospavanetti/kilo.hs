@@ -38,11 +38,12 @@ data Erow = Erow { chars :: T.Text, render :: T.Text }
 
 data EditorConfig = EditorConfig
     { cursor     :: (Int, Int)
-    , rowOffset :: Int
-    , colOffset :: Int
+    , rowOffset  :: Int
+    , colOffset  :: Int
     , windowSize :: (Int, Int)
-    , numRows :: Int
-    , row :: [Erow]
+    , numRows    :: Int
+    , row        :: [Erow]
+    , fileName   :: Maybe String
     }
 
 data EditorKey
@@ -240,7 +241,8 @@ editorOpen fileName config = do
     content <- hGetContents file
     let rows  = T.splitOn "\n" (T.pack content)
     let erows = map editorUpdateRow rows
-    return config { row = erows, numRows = length rows }
+    return config
+        { row = erows, numRows = length rows, fileName = Just fileName }
 
 {-- append buffer --}
 
@@ -379,6 +381,7 @@ initEditorConfig (rows, cols) = EditorConfig
     , windowSize = (rows - 1, cols)
     , numRows = 0
     , row = []
+    , fileName = Nothing
     }
 
 firstEditorConfig :: IO EditorConfig
