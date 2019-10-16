@@ -214,6 +214,19 @@ getWindowSize = moveToLimit >> getCursorPosition
 -- editorAppendRow :: EditorConfig -> AppendBuffer -> EditorConfig
 -- editorAppendRow config line = config { row = [line], numRows = 1 }
 
+editorUpdateRow :: T.Text -> Erow
+editorUpdateRow row = Erow
+    { chars = row
+    , render = T.unfoldr transform (1, T.unpack row)
+    }
+  where
+    transform :: (Int, String) -> Maybe (Char, (Int, String))
+    transform (n, '\t':cs)
+        | n `mod` 8 == 0 = Just (' ', (1, cs))
+        | otherwise      = Just (' ', (n + 1, '\t':cs))
+    transform (idx, c:cs)  = Just (c, (idx + 1, cs))
+    transform (idx, "")    = Nothing
+
 {-- file i/o --}
 
 editorOpen :: FilePath -> EditorConfig -> IO EditorConfig
@@ -221,7 +234,7 @@ editorOpen fileName config = do
     file <- openFile fileName ReadMode
     content <- hGetContents file
     let rows  = T.splitOn "\n" (T.pack content)
-    let erows = map (\r -> Erow { chars = r, render = r }) rows
+    let erows = map editorUpdateRow rows
     return config { row = erows, numRows = length rows }
 
 {-- append buffer --}
