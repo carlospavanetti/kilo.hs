@@ -6,6 +6,7 @@ module Main where
 import Data.Bits ((.&.))
 import Data.Char (chr, ord, isNumber)
 import Data.String (IsString)
+import Data.Maybe (fromMaybe)
 import Control.Exception (finally, catch, IOException)
 import Control.Monad (void)
 
@@ -303,11 +304,15 @@ editorDrawRows config = T.concat $ map (editorRow config) [1.. rows]
 editorDrawStatusBar :: EditorConfig -> AppendBuffer
 editorDrawStatusBar EditorConfig
     { windowSize = (_, cols)
-    } = invertCommand `mappend` emptyBar `mappend` restoreCommand
+    , fileName = fileName
+    , numRows = numRows
+    } = invertCommand `mappend` statusBar `mappend` restoreCommand
   where
     invertCommand  = escape "7m"
     restoreCommand = escape "m"
-    emptyBar = T.replicate cols " "
+    fillSpaces = T.replicate (cols - T.length content) " "
+    content = T.pack $ printf "%.20s - %d lines" (fromMaybe "[No Name]" fileName) numRows
+    statusBar = content `mappend` fillSpaces
 
 editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
