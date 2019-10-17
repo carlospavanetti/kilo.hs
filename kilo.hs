@@ -275,7 +275,7 @@ editorScroll config@EditorConfig
         | otherwise            = colOffset
 
 clearLineCommand :: AppendBuffer
-clearLineCommand = T.pack $ escape "K"
+clearLineCommand = escape "K"
 
 editorRow :: EditorConfig -> Int -> AppendBuffer
 editorRow EditorConfig
@@ -323,6 +323,10 @@ editorDrawStatusBar EditorConfig
     right = T.pack $ printf "%d/%d" (cy - 1) numRows
     statusBar = left `mappend` fill `mappend` right
 
+editorDrawMessageBar :: EditorConfig -> AppendBuffer
+editorDrawMessageBar EditorConfig
+    { statusMsg = statusMsg } = clearLineCommand `mappend` message statusMsg
+
 editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
     { cursor = (x, y)
@@ -333,6 +337,7 @@ editorRefreshScreen config@EditorConfig
     >> editorRepositionCursor
     >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
     >> fdWrite stdOutput (T.unpack $ editorDrawStatusBar config)
+    >> fdWrite stdOutput (T.unpack $ editorDrawMessageBar config)
     >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
     >> return config
@@ -392,7 +397,7 @@ initEditorConfig (rows, cols) message = EditorConfig
     { cursor = (1, 1)
     , rowOffset = 0
     , colOffset = 0
-    , windowSize = (rows - 1, cols)
+    , windowSize = (rows - 2, cols)
     , numRows = 0
     , row = []
     , fileName = Nothing
