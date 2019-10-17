@@ -292,8 +292,7 @@ editorRow EditorConfig
     fileRow = rowIndex + rowOffset
     currentRow = render $ row !! (fileRow - 1)
     tilde = "~"
-    clear row = row `mappend` clearLineCommand `mappend` maybeCRLN
-    maybeCRLN = "\r\n"
+    clear row = row `mappend` clearLineCommand `mappend` "\r\n"
     truncate = T.take windowCols
     displayWelcomeMessage = numRows == 0 && rowIndex == windowRows `div` 3
     padding
@@ -313,7 +312,10 @@ editorDrawStatusBar EditorConfig
     , fileName = fileName
     , cursor = (_, cy)
     , numRows = numRows
-    } = invertCommand `mappend` statusBar `mappend` restoreCommand
+    } = invertCommand
+        `mappend` statusBar
+        `mappend` restoreCommand
+        `mappend` "\r\n"
   where
     invertCommand  = escape "7m"
     restoreCommand = escape "m"
@@ -323,9 +325,14 @@ editorDrawStatusBar EditorConfig
     right = T.pack $ printf "%d/%d" (cy - 1) numRows
     statusBar = left `mappend` fill `mappend` right
 
-editorDrawMessageBar :: EditorConfig -> AppendBuffer
+editorDrawMessageBar :: EditorConfig -> EpochTime -> AppendBuffer
 editorDrawMessageBar EditorConfig
-    { statusMsg = statusMsg } = clearLineCommand `mappend` message statusMsg
+    { statusMsg = statusMsg } now = clearLineCommand `mappend` messageWhenOnTime
+  where
+    messageWhenOnTime
+        | isOnTime  = message statusMsg
+        | otherwise = ""
+    isOnTime = now - timestamp statusMsg < 5
 
 editorRefreshScreen :: EditorConfig -> IO EditorConfig
 editorRefreshScreen config@EditorConfig
@@ -337,7 +344,8 @@ editorRefreshScreen config@EditorConfig
     >> editorRepositionCursor
     >> fdWrite stdOutput (T.unpack $ editorDrawRows config)
     >> fdWrite stdOutput (T.unpack $ editorDrawStatusBar config)
-    >> fdWrite stdOutput (T.unpack $ editorDrawMessageBar config)
+    >> epochTime
+    >>=fdWrite stdOutput . (T.unpack . editorDrawMessageBar config)
     >> editorPositionCursor (x - colOffset, y - rowOffset)
     >> editorShowCursor
     >> return config
